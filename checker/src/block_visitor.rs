@@ -2780,9 +2780,11 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
         let mut kind = literal.kind();
         let lty = literal.ty();
         if let rustc_middle::ty::ConstKind::Unevaluated(_unevaluated) = &kind {
-            kind = literal
-                .eval(self.bv.tcx, self.type_visitor().get_param_env())
-                .kind();
+            if let Ok(val_tree) =
+                literal.eval(self.bv.tcx, self.type_visitor().get_param_env(), None)
+            {
+                kind = rustc_middle::ty::ConstKind::Value(val_tree);
+            }
         }
 
         match &kind {
@@ -3114,13 +3116,17 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             }
 
             // A value not represented/representable by `Scalar` or `Slice`
-            ConstValue::ByRef {
+            ConstValue::Indirect {
                 // The backing memory of the value, may contain more memory than needed for just the value
                 // in order to share `ConstAllocation`s between values
-                alloc,
+                alloc_id,
                 // Offset into `alloc`
                 offset,
             } => {
+                let Some(GlobalAlloc::Memory(alloc)) = self.bv.tcx.try_get_global_alloc(alloc_id)
+                else {
+                    assume_unreachable!("ConstValue::Indirect missing allocation {:?}", lty);
+                };
                 let alloc_len = alloc.inner().len();
                 let offset_bytes = offset.bytes() as usize;
                 // The Rust compiler should ensure this.
