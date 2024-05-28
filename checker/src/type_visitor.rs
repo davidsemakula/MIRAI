@@ -159,8 +159,8 @@ impl<'tcx> TypeVisitor<'tcx> {
                     }
                 }
             }
-            TyKind::Generator(_, args, _) => {
-                for (i, ty) in args.as_generator().prefix_tys().iter().enumerate() {
+            TyKind::Coroutine(_, args) => {
+                for (i, ty) in args.as_coroutine().prefix_tys().iter().enumerate() {
                     let var_type = ExpressionType::from(ty.kind());
                     let mut qualifier = path.clone();
                     if is_ref {
@@ -230,7 +230,7 @@ impl<'tcx> TypeVisitor<'tcx> {
 
     /// Returns a parameter environment for the current function.
     pub fn get_param_env(&self) -> rustc_middle::ty::ParamEnv<'tcx> {
-        let env_def_id = if self.tcx.is_closure(self.def_id) {
+        let env_def_id = if self.tcx.is_closure_or_coroutine(self.def_id) {
             self.tcx.typeck_root_def_id(self.def_id)
         } else {
             self.def_id
@@ -276,8 +276,8 @@ impl<'tcx> TypeVisitor<'tcx> {
                 | TyKind::FnDef(..)
                 | TyKind::FnPtr(_)
                 | TyKind::Foreign(..)
-                | TyKind::Generator(..)
-                | TyKind::GeneratorWitness(..)
+                | TyKind::Coroutine(..)
+                | TyKind::CoroutineWitness(..)
                 | TyKind::Alias(rustc_middle::ty::Opaque, ..)
         )
     }
@@ -490,7 +490,12 @@ impl<'tcx> TypeVisitor<'tcx> {
                             }
                             TyKind::Closure(def_id, args) => {
                                 let closure_substs = args.as_closure();
-                                if closure_substs.is_valid() {
+                                let is_valid = closure_substs.args.len() >= 3
+                                    && matches!(
+                                        closure_substs.tupled_upvars_ty().kind(),
+                                        rustc_middle::ty::TyKind::Tuple(_)
+                                    );
+                                if is_valid {
                                     return *closure_substs
                                         .upvar_tys()
                                         .get(*ordinal)
@@ -503,13 +508,13 @@ impl<'tcx> TypeVisitor<'tcx> {
                                         });
                                 }
                             }
-                            TyKind::Generator(def_id, args, _) => {
+                            TyKind::Coroutine(def_id, args) => {
                                 let mut tuple_types =
-                                    args.as_generator().state_tys(*def_id, self.tcx);
+                                    args.as_coroutine().state_tys(*def_id, self.tcx);
                                 if let Some(field_tys) = tuple_types.nth(*ordinal) {
                                     return Ty::new_tup_from_iter(self.tcx, field_tys);
                                 }
-                                info!("generator field not found {:?} {:?}", def_id, ordinal);
+                                info!("coroutine field not found {:?} {:?}", def_id, ordinal);
                                 return self.tcx.types.never;
                             }
                             TyKind::Ref(_, t, _) if matches!(t.kind(), TyKind::Closure(..)) => {
@@ -941,7 +946,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                         }
                     }
                 }
-                mir::ProjectionElem::OpaqueCast(ty) => *ty,
+                mir::ProjectionElem::OpaqueCast(ty) | mir::ProjectionElem::Subtype(ty) => *ty,
                 mir::ProjectionElem::Downcast(_, ordinal) => {
                     if let TyKind::Adt(def, args) = base_ty.kind() {
                         if ordinal.index() >= def.variants().len() {
@@ -958,8 +963,8 @@ impl<'tcx> TypeVisitor<'tcx> {
                         let variant = &def.variants()[*ordinal];
                         let field_tys = variant.fields.iter().map(|fd| fd.ty(self.tcx, args));
                         return Ty::new_tup_from_iter(self.tcx, field_tys);
-                    } else if let TyKind::Generator(def_id, args, ..) = base_ty.kind() {
-                        let mut tuple_types = args.as_generator().state_tys(*def_id, self.tcx);
+                    } else if let TyKind::Coroutine(def_id, args) = base_ty.kind() {
+                        let mut tuple_types = args.as_coroutine().state_tys(*def_id, self.tcx);
                         if let Some(field_tys) = tuple_types.nth(ordinal.index()) {
                             return Ty::new_tup_from_iter(self.tcx, field_tys);
                         }
@@ -1238,23 +1243,14 @@ impl<'tcx> TypeVisitor<'tcx> {
                 closures_being_specialized.remove(def_id);
                 specialized_closure
             }
-            TyKind::Generator(def_id, args, movability) => Ty::new_generator(
+            TyKind::Coroutine(def_id, args) => {
+                Ty::new_coroutine(self.tcx, *def_id, self.specialize_generic_args(args, map))
+            }
+            TyKind::CoroutineWitness(def_id, args) => Ty::new_coroutine_witness(
                 self.tcx,
                 *def_id,
                 self.specialize_generic_args(args, map),
-                *movability,
             ),
-            TyKind::GeneratorWitness(bound_types) => {
-                let map_types = |types: &rustc_middle::ty::List<Ty<'tcx>>| {
-                    self.tcx.mk_type_list_from_iter(
-                        types
-                            .iter()
-                            .map(|ty| self.specialize_generic_argument_type(ty, map)),
-                    )
-                };
-                let specialized_types = bound_types.map_bound(map_types);
-                Ty::new_generator_witness(self.tcx, specialized_types)
-            }
             TyKind::Tuple(types) => Ty::new_tup_from_iter(
                 self.tcx,
                 types

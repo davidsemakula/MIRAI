@@ -71,7 +71,7 @@ pub fn is_higher_order_function(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
 /// This does not traverse references, so the answer is approximate.
 #[logfn(TRACE)]
 pub fn contains_function<'tcx>(ty: Ty<'tcx>, tcx: TyCtxt<'tcx>) -> bool {
-    if ty.is_fn() || ty.is_closure() || ty.is_generator() {
+    if ty.is_fn() || ty.is_closure() || ty.is_coroutine() {
         return true;
     }
     if let TyKind::Adt(def, args) = ty.kind() {
@@ -90,15 +90,17 @@ pub fn contains_function<'tcx>(ty: Ty<'tcx>, tcx: TyCtxt<'tcx>) -> bool {
 /// Returns true if the function identified by def_id is a public function.
 #[logfn(TRACE)]
 pub fn is_public(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
-    use rustc_hir::def_id::LocalDefId;
-
-    if tcx.hir().get_if_local(def_id).is_some() {
-        let def_id = def_id.expect_local();
-        match tcx.resolutions(()).visibilities.get(&def_id) {
+    if let Some(local_def_id) = def_id.as_local() {
+        let vis_opt = tcx
+            .resolutions(())
+            .visibilities_for_hashing
+            .iter()
+            .find_map(|(id, vis)| (*id == local_def_id).then_some(vis));
+        match vis_opt {
             Some(vis) => vis.is_public(),
             None => {
-                let hir_id = tcx.hir().local_def_id_to_hir_id(def_id);
-                match tcx.hir().get(hir_id) {
+                let hir_id = tcx.local_def_id_to_hir_id(local_def_id);
+                match tcx.hir_node(hir_id) {
                     Node::Expr(rustc_hir::Expr {
                         kind: rustc_hir::ExprKind::Closure { .. },
                         ..
@@ -111,8 +113,8 @@ pub fn is_public(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
                     }) => ty::Visibility::Restricted(tcx.parent_module(hir_id).to_def_id())
                         .is_public(),
                     Node::ImplItem(..) => {
-                        let parent_def_id: LocalDefId = tcx.hir().get_parent_item(hir_id).def_id;
-                        match tcx.hir().get_by_def_id(parent_def_id) {
+                        let parent_def_id = tcx.hir().get_parent_item(hir_id).def_id;
+                        match tcx.hir_node_by_def_id(parent_def_id) {
                             Node::Item(rustc_hir::Item {
                                 kind:
                                     rustc_hir::ItemKind::Impl(rustc_hir::Impl {
@@ -126,8 +128,10 @@ pub fn is_public(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
                                 .opt_def_id()
                                 .map_or_else(
                                     || {
-                                        tcx.sess
-                                            .delay_span_bug(tr.path.span, "trait without a def-id");
+                                        tcx.sess.dcx().span_delayed_bug(
+                                            tr.path.span,
+                                            "trait without a def-id",
+                                        );
                                         ty::Visibility::Public
                                     },
                                     |def_id| tcx.visibility(def_id),
@@ -250,20 +254,24 @@ fn append_mangled_type<'tcx>(str: &mut String, ty: Ty<'tcx>, tcx: TyCtxt<'tcx>) 
                 }
             }
         }
-        TyKind::Generator(def_id, subs, ..) => {
-            str.push_str("generator_");
+        TyKind::Coroutine(def_id, subs, ..) => {
+            str.push_str("coroutine_");
             str.push_str(qualified_type_name(tcx, *def_id).as_str());
-            for sub in subs.as_generator().args {
+            for sub in subs.as_coroutine().args {
                 if let GenericArgKind::Type(ty) = sub.unpack() {
                     str.push('_');
                     append_mangled_type(str, ty, tcx);
                 }
             }
         }
-        TyKind::GeneratorWitness(binder) => {
-            for ty in binder.skip_binder().iter() {
-                str.push('_');
-                append_mangled_type(str, ty, tcx)
+        TyKind::CoroutineWitness(def_id, subs) => {
+            str.push_str("coroutine_witness_");
+            str.push_str(qualified_type_name(tcx, *def_id).as_str());
+            for sub in *subs {
+                if let GenericArgKind::Type(ty) = sub.unpack() {
+                    str.push('_');
+                    append_mangled_type(str, ty, tcx);
+                }
             }
         }
         TyKind::Alias(rustc_middle::ty::Opaque, rustc_middle::ty::AliasTy { def_id, args, .. }) => {
@@ -425,10 +433,10 @@ fn push_component_name(component_data: DefPathData, target: &mut String) {
             ForeignMod => "foreign",
             Use => "use",
             GlobalAsm => "global_asm",
-            ClosureExpr => "closure",
+            Closure => "closure",
             Ctor => "ctor",
             AnonConst => "constant",
-            ImplTrait => "implement_trait",
+            OpaqueTy => "implement_trait",
             _ => assume_unreachable!(),
         }),
     };
@@ -471,8 +479,8 @@ pub fn def_id_display_name(tcx: TyCtxt<'_>, def_id: DefId) -> String {
     struct PrettyDefId<'tcx>(DefId, TyCtxt<'tcx>);
     impl std::fmt::Debug for PrettyDefId<'_> {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let pr = FmtPrinter::new(self.1, rustc_hir::def::Namespace::ValueNS)
-                .print_def_path(self.0, &[])?;
+            let mut pr = FmtPrinter::new(self.1, rustc_hir::def::Namespace::ValueNS);
+            pr.print_def_path(self.0, &[])?;
             f.write_str(&pr.into_buffer())
         }
     }
@@ -497,7 +505,7 @@ pub fn is_concrete(ty: &TyKind<'_>) -> bool {
         TyKind::Adt(_, gen_args)
         | TyKind::Closure(_, gen_args)
         | TyKind::FnDef(_, gen_args)
-        | TyKind::Generator(_, gen_args, _)
+        | TyKind::Coroutine(_, gen_args)
         | TyKind::Alias(_, rustc_middle::ty::AliasTy { args: gen_args, .. }) => {
             are_concrete(gen_args)
         }

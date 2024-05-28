@@ -31,7 +31,7 @@ use std::path::Path;
 
 fn main() {
     let early_error_handler =
-        rustc_session::EarlyErrorHandler::new(rustc_session::config::ErrorOutputType::default());
+        rustc_session::EarlyDiagCtxt::new(rustc_session::config::ErrorOutputType::default());
 
     // Initialize loggers.
     if env::var("RUSTC_LOG").is_ok() {
@@ -59,7 +59,7 @@ fn main() {
         .map(|(i, arg)| {
             arg.into_string().unwrap_or_else(|arg| {
                 early_error_handler
-                    .early_error(format!("Argument {i} is not valid Unicode: {arg:?}"))
+                    .early_fatal(format!("Argument {i} is not valid Unicode: {arg:?}"))
             })
         })
         .collect::<Vec<_>>();

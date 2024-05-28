@@ -74,13 +74,17 @@ impl rustc_driver::Callbacks for MiraiCallbacks {
     /// Called before creating the compiler instance
     #[logfn(TRACE)]
     fn config(&mut self, config: &mut interface::Config) {
-        self.file_name = config.input.source_name().prefer_remapped().to_string();
+        self.file_name = config
+            .input
+            .source_name()
+            .prefer_remapped_unconditionaly()
+            .to_string();
         info!("Processing input file: {}", self.file_name);
         if config.opts.test {
             info!("in test only mode");
             self.options.test_only = true;
         }
-        config.crate_cfg.insert(("mirai".to_string(), None));
+        config.crate_cfg.push("mirai".to_string());
         match &config.output_dir {
             None => {
                 self.output_directory = std::env::temp_dir();
@@ -100,7 +104,7 @@ impl rustc_driver::Callbacks for MiraiCallbacks {
         compiler: &interface::Compiler,
         queries: &'tcx Queries<'tcx>,
     ) -> Compilation {
-        compiler.session().abort_if_errors();
+        compiler.sess.dcx().abort_if_errors();
         if self
             .output_directory
             .to_str()
@@ -159,7 +163,7 @@ impl MiraiCallbacks {
             file_name: self.file_name.as_str(),
             known_names_cache: KnownNamesCache::create_cache_from_language_items(),
             options: &std::mem::take(&mut self.options),
-            session: compiler.session(),
+            session: &compiler.sess,
             generic_args_cache: HashMap::new(),
             summary_cache: PersistentSummaryCache::new(tcx, summary_store_path),
             tcx,

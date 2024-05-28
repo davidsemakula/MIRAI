@@ -9,7 +9,7 @@ use clap::{Arg, Command};
 use itertools::Itertools;
 
 use mirai_annotations::*;
-use rustc_session::EarlyErrorHandler;
+use rustc_session::EarlyDiagCtxt;
 
 /// Creates the clap::Command metadata for argument parsing.
 fn make_options_parser(running_test_harness: bool) -> Command {
@@ -110,12 +110,12 @@ impl Options {
     pub fn parse_from_str(
         &mut self,
         s: &str,
-        handler: &EarlyErrorHandler,
+        handler: &EarlyDiagCtxt,
         running_test_harness: bool,
     ) -> Vec<String> {
         self.parse(
             &shellwords::split(s).unwrap_or_else(|e| {
-                handler.early_error(format!("Cannot parse argument string: {e:?}"))
+                handler.early_fatal(format!("Cannot parse argument string: {e:?}"))
             }),
             handler,
             running_test_harness,
@@ -127,7 +127,7 @@ impl Options {
     pub fn parse(
         &mut self,
         args: &[String],
-        handler: &EarlyErrorHandler,
+        handler: &EarlyDiagCtxt,
         running_test_harness: bool,
     ) -> Vec<String> {
         let mut mirai_args_end = args.len();
@@ -203,7 +203,7 @@ impl Options {
                 match matches.get_one::<String>("body_analysis_timeout") {
                     Some(s) => match s.parse::<u64>() {
                         Ok(v) => v,
-                        Err(_) => handler.early_error("--body_analysis_timeout expects an integer"),
+                        Err(_) => handler.early_fatal("--body_analysis_timeout expects an integer"),
                     },
                     None => assume_unreachable!(),
                 }
@@ -214,7 +214,7 @@ impl Options {
             {
                 Some(s) => match s.parse::<u64>() {
                     Ok(v) => v,
-                    Err(_) => handler.early_error("--crate_analysis_timeout expects an integer"),
+                    Err(_) => handler.early_fatal("--crate_analysis_timeout expects an integer"),
                 },
                 None => assume_unreachable!(),
             }

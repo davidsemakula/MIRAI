@@ -14,8 +14,8 @@ use mirai_annotations::*;
 use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec};
 use rustc_middle::mir;
-use rustc_middle::mir::interpret::{alloc_range, ConstValue, GlobalAlloc, Scalar};
-use rustc_middle::mir::UnwindTerminateReason;
+use rustc_middle::mir::interpret::{alloc_range, GlobalAlloc, Scalar};
+use rustc_middle::mir::{ConstValue, UnwindTerminateReason};
 use rustc_middle::ty::adjustment::PointerCoercion;
 use rustc_middle::ty::layout::LayoutCx;
 use rustc_middle::ty::{
@@ -214,7 +214,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .type_visitor()
             .get_rustc_place_type(place, self.bv.current_span);
         match ty.kind() {
-            TyKind::Adt(..) | TyKind::Generator(..) => {
+            TyKind::Adt(..) | TyKind::Coroutine(..) => {
                 let discr_ty = ty.discriminant_ty(self.bv.tcx);
                 let discr_bits = match ty.discriminant_for_variant(self.bv.tcx, variant_index) {
                     Some(discr) => discr.val,
@@ -325,7 +325,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 unwind,
             } => self.visit_assert(cond, *expected, msg, *target, *unwind),
             mir::TerminatorKind::Yield { .. } => assume_unreachable!(),
-            mir::TerminatorKind::GeneratorDrop => assume_unreachable!(),
+            mir::TerminatorKind::CoroutineDrop => assume_unreachable!(),
             mir::TerminatorKind::FalseEdge { .. } => assume_unreachable!(),
             mir::TerminatorKind::FalseUnwind { .. } => assume_unreachable!(),
             mir::TerminatorKind::InlineAsm { destination, .. } => {
@@ -365,7 +365,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         if !self.bv.cv.constant_time_tag_not_found {
                             self.bv.cv.constant_time_tag_not_found = true;
                             let span = self.bv.current_span;
-                            let warning = self.bv.cv.session.struct_span_warn(
+                            let warning = self.bv.cv.session.dcx().struct_span_warn(
                                 span,
                                 format!(
                                     "unknown tag type for constant-time verification: {tag_name}",
@@ -586,7 +586,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
     fn visit_call(
         &mut self,
         func: &mir::Operand<'tcx>,
-        args: &[mir::Operand<'tcx>],
+        args: &[rustc_span::source_map::Spanned<mir::Operand<'tcx>>],
         destination: mir::Place<'tcx>,
         target: Option<mir::BasicBlock>,
         unwind: mir::UnwindAction,
@@ -642,12 +642,17 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .specialize_generic_args(generic_args, &self.type_visitor().generic_argument_map);
         let actual_args: Vec<(Rc<Path>, Rc<AbstractValue>)> = args
             .iter()
-            .map(|arg| (self.get_operand_path(arg), self.visit_operand(arg)))
+            .map(|arg| {
+                (
+                    self.get_operand_path(&arg.node),
+                    self.visit_operand(&arg.node),
+                )
+            })
             .collect();
         let actual_argument_types: Vec<Ty<'tcx>> = args
             .iter()
             .map(|arg| {
-                let arg_ty = self.get_operand_rustc_type(arg);
+                let arg_ty = self.get_operand_rustc_type(&arg.node);
                 if utils::is_concrete(arg_ty.kind()) {
                     arg_ty
                 } else {
@@ -658,7 +663,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     if utils::is_concrete(specialized_ty.kind()) {
                         specialized_ty
                     } else {
-                        let path = self.get_operand_path(arg);
+                        let path = self.get_operand_path(&arg.node);
                         self.type_visitor()
                             .get_path_rustc_type(&path, self.bv.current_span)
                     }
@@ -960,7 +965,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 }
                 _ => {
                     // Give a diagnostic about this call, and make it the programmer's problem.
-                    let warning = self.bv.cv.session.struct_span_warn(
+                    let warning = self.bv.cv.session.dcx().struct_span_warn(
                         self.bv.current_span,
                         "the called function did not resolve to an implementation with a MIR body",
                     );
@@ -1025,7 +1030,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 }
                 match specialized_closure_ty.kind() {
                     TyKind::Closure(def_id, args)
-                    | TyKind::Generator(def_id, args, _)
+                    | TyKind::Coroutine(def_id, args)
                     | TyKind::FnDef(def_id, args) => {
                         return extract_func_ref(self.visit_function_reference(
                             *def_id,
@@ -1156,6 +1161,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .bv
             .cv
             .session
+            .dcx()
             .struct_span_warn(span, diagnostic.as_ref().to_string());
         for pc_span in precondition.spans.iter() {
             let snippet = self.bv.tcx.sess.source_map().span_to_snippet(*pc_span);
@@ -1193,7 +1199,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         self.bv.post_condition_block = Some(this_block);
                     } else {
                         let span = self.bv.current_span;
-                        let warning = self.bv.cv.session.struct_span_warn(
+                        let warning = self.bv.cv.session.dcx().struct_span_warn(
                             span,
                             "multiple post conditions must be on the same execution path",
                         );
@@ -1232,7 +1238,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             let span = self.bv.current_span.source_callsite();
             let message =
                 "this is unreachable, mark it as such by using the verify_unreachable! macro";
-            let warning = self.bv.cv.session.struct_span_warn(span, message);
+            let warning = self.bv.cv.session.dcx().struct_span_warn(span, message);
             self.bv.emit_diagnostic(warning);
             return None;
         }
@@ -1249,7 +1255,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             } else {
                 "possible unsatisfied postcondition"
             };
-            let warning = self.bv.cv.session.struct_span_warn(span, msg);
+            let warning = self.bv.cv.session.dcx().struct_span_warn(span, msg);
             self.bv.emit_diagnostic(warning);
             // Don't add the post condition to the summary
             return None;
@@ -1269,6 +1275,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 .bv
                 .cv
                 .session
+                .dcx()
                 .struct_span_warn(span, "provably false verification condition");
             self.bv.emit_diagnostic(warning);
             if entry_cond_as_bool.is_none()
@@ -1315,7 +1322,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 )
             {
                 let span = self.bv.current_span.source_callsite();
-                let warning = self.bv.cv.session.struct_span_warn(span, warning.clone());
+                let warning = self
+                    .bv
+                    .cv
+                    .session
+                    .dcx()
+                    .struct_span_warn(span, warning.clone());
                 self.bv.emit_diagnostic(warning);
             }
         }
@@ -1396,7 +1408,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         || self.bv.preconditions.len() >= k_limits::MAX_INFERRED_PRECONDITIONS
                     {
                         let span = self.bv.current_span.source_callsite();
-                        let warning = self.bv.cv.session.struct_span_warn(
+                        let warning = self.bv.cv.session.dcx().struct_span_warn(
                             span,
                             format!(
                                 "the {} {} have a {} tag",
@@ -1405,12 +1417,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 tag_name
                             ),
                         );
-                        self.bv.emit_diagnostic(warning.clone());
+                        self.bv.emit_diagnostic(warning);
                     } else if promotable_entry_condition.is_none()
                         || tag_check.extract_promotable_disjuncts(false).is_none()
                     {
                         let span = self.bv.current_span.source_callsite();
-                        let warning = self.bv.cv.session.struct_span_warn(
+                        let warning = self.bv.cv.session.dcx().struct_span_warn(
                             span,
                             format!(
                                 "the {value_name} may have a {tag_name} tag, \
@@ -1418,7 +1430,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 because it contains local variables",
                             ),
                         );
-                        self.bv.emit_diagnostic(warning.clone());
+                        self.bv.emit_diagnostic(warning);
                     }
                 }
 
@@ -1426,11 +1438,11 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     // The existence of the tag on the value is different from the expectation.
                     // In this case, report an error.
                     let span = self.bv.current_span.source_callsite();
-                    let warning = self
-                        .bv
-                        .cv
-                        .session
-                        .struct_span_warn(span, format!("the {value_name} has a {tag_name} tag"));
+                    let warning =
+                        self.bv.cv.session.dcx().struct_span_warn(
+                            span,
+                            format!("the {value_name} has a {tag_name} tag"),
+                        );
                     self.bv.emit_diagnostic(warning);
                 }
 
@@ -1536,8 +1548,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         if entry_cond_as_bool.unwrap_or(false) {
                             let error = get_assert_msg_description(msg);
                             let span = self.bv.current_span;
-                            let warning =
-                                self.bv.cv.session.struct_span_warn(span, error.to_string());
+                            let warning = self
+                                .bv
+                                .cv
+                                .session
+                                .dcx()
+                                .struct_span_warn(span, error.to_string());
                             self.bv.emit_diagnostic(warning);
                             // No need to push a precondition, the caller can never satisfy it.
                             return;
@@ -1571,7 +1587,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         // Can't make this the caller's problem.
                         let warning = format!("possible {}", get_assert_msg_description(msg));
                         let span = self.bv.current_span;
-                        let warning = self.bv.cv.session.struct_span_warn(span, warning);
+                        let warning = self.bv.cv.session.dcx().struct_span_warn(span, warning);
                         self.bv.emit_diagnostic(warning);
                         return;
                     }
@@ -1654,6 +1670,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .bv
             .cv
             .session
+            .dcx()
             .struct_span_warn(span, "Inline assembly code cannot be analyzed by MIRAI.");
         self.bv.emit_diagnostic(warning);
         // Don't stop the analysis if we are building a call graph.
@@ -1735,7 +1752,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 self.visit_used_move(path, place);
             }
             mir::Operand::Constant(constant) => {
-                let mir::Constant { literal, .. } = constant.borrow();
+                let mir::ConstOperand {
+                    const_: literal, ..
+                } = constant.borrow();
                 let rh_type = literal.ty();
                 let const_value = self.visit_literal(literal);
                 if const_value.expression.infer_type() == ExpressionType::NonPrimitive {
@@ -2446,7 +2465,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         param_env: self.type_visitor().get_param_env(),
                     };
                     let offset_in_bytes = ty_and_layout
-                        .offset_of_subfield(&lcx, fields.iter().map(|f| f.index()))
+                        .offset_of_subfield(&lcx, fields.iter())
                         .bytes();
                     Rc::new((offset_in_bytes as u128).into())
                 } else {
@@ -2589,7 +2608,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 }
             }
             mir::AggregateKind::Closure(def_id, args)
-            | mir::AggregateKind::Generator(def_id, args, _) => {
+            | mir::AggregateKind::Coroutine(def_id, args) => {
                 let ty = self.bv.tcx.type_of(*def_id).skip_binder();
                 let func_const = self.visit_function_reference(*def_id, ty, Some(args));
                 let func_val = Rc::new(func_const.clone().into());
@@ -2641,7 +2660,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 .type_visitor()
                 .get_rustc_place_type(place, self.bv.current_span),
             mir::Operand::Constant(constant) => {
-                let mir::Constant { literal, .. } = constant.borrow();
+                let mir::ConstOperand {
+                    const_: literal, ..
+                } = constant.borrow();
                 literal.ty()
             }
         }
@@ -2655,7 +2676,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             mir::Operand::Copy(place) => self.visit_copy(place),
             mir::Operand::Move(place) => self.visit_move(place),
             mir::Operand::Constant(constant) => {
-                let mir::Constant { literal, .. } = constant.borrow();
+                let mir::ConstOperand {
+                    const_: literal, ..
+                } = constant.borrow();
                 self.visit_literal(literal)
             }
         }
@@ -2690,14 +2713,14 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
 
     /// Returns a value that corresponds to the given literal
     #[logfn_inputs(TRACE)]
-    pub fn visit_literal(&mut self, literal: &mir::ConstantKind<'tcx>) -> Rc<AbstractValue> {
+    pub fn visit_literal(&mut self, literal: &mir::Const<'tcx>) -> Rc<AbstractValue> {
         match literal {
             // This constant came from the type system
-            mir::ConstantKind::Ty(c) => self.visit_const(c),
+            mir::Const::Ty(c) => self.visit_const(c),
             // An unevaluated mir constant which is not part of the type system.
-            mir::ConstantKind::Unevaluated(c, ty) => self.visit_unevaluated_const(c, *ty),
+            mir::Const::Unevaluated(c, ty) => self.visit_unevaluated_const(c, *ty),
             // This constant contains something the type system cannot handle (e.g. pointers).
-            mir::ConstantKind::Val(v, ty) => self.visit_const_value(*v, *ty),
+            mir::Const::Val(v, ty) => self.visit_const_value(*v, *ty),
         }
     }
 
@@ -2956,52 +2979,24 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             // The size is always the pointer size of the current target, but this is not information
             // that we always have readily available.
             ConstValue::Scalar(Scalar::Ptr(ptr, _size)) => {
-                match self.bv.tcx.try_get_global_alloc(ptr.provenance) {
+                match self.bv.tcx.try_get_global_alloc(ptr.provenance.alloc_id()) {
                     Some(GlobalAlloc::Memory(alloc)) => {
                         let alloc_len = alloc.inner().len() as u64;
                         let offset_bytes = ptr.into_parts().1.bytes();
-                        // The Rust compiler should ensure this.
-                        assume!(alloc_len > offset_bytes);
-                        let size = alloc_len - offset_bytes;
-                        let bytes = alloc
-                            .inner()
-                            .get_bytes_strip_provenance(
-                                &self.bv.tcx,
-                                alloc_range(
-                                    ptr.into_parts().1,
-                                    rustc_target::abi::Size::from_bytes(size),
-                                ),
-                            )
-                            .unwrap();
-                        match lty.kind() {
-                            TyKind::Array(elem_type, length) => {
-                                let length = self.bv.get_array_length(length);
-                                let (array_value, array_path) =
-                                    self.get_heap_array_and_path(lty, size as usize);
-                                self.deserialize_constant_array(
-                                    array_path, bytes, length, *elem_type,
-                                );
-                                array_value
-                            }
-                            TyKind::Ref(_, t, _) => {
-                                if let TyKind::Array(elem_type, length) = t.kind() {
-                                    let length = self.bv.get_array_length(length);
-                                    let (_, array_path) =
-                                        self.get_heap_array_and_path(lty, size as usize);
-                                    self.deserialize_constant_array(
-                                        array_path.clone(),
-                                        bytes,
-                                        length,
-                                        *elem_type,
-                                    );
-                                    AbstractValue::make_reference(array_path)
-                                } else {
-                                    assume_unreachable!("ConstValue::Ptr with type {:?}", lty);
-                                }
-                            }
-                            _ => {
-                                assume_unreachable!("ConstValue::Scalar with type {:?}", lty);
-                            }
+                        let align = alloc.inner().align.bytes() as u128;
+                        if alloc_len == 0 {
+                            // The Rust compiler should ensure this.
+                            assume!(offset_bytes == 0);
+                            self.make_const_pointer_from_scalar(lty, &[], 0, align)
+                        } else {
+                            // The Rust compiler should ensure this.
+                            assume!(alloc_len > offset_bytes);
+                            let size = alloc_len - offset_bytes;
+                            let bytes = alloc.inner().get_bytes_unchecked(alloc_range(
+                                ptr.into_parts().1,
+                                rustc_target::abi::Size::from_bytes(size),
+                            ));
+                            self.make_const_pointer_from_scalar(lty, bytes, size, align)
                         }
                     }
                     Some(GlobalAlloc::Function(instance)) => {
@@ -3060,20 +3055,21 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             ConstValue::ZeroSized => self.get_constant_value_from_scalar(lty, 0, 0),
 
             // Used only for `&[u8]` and `&str`
-            ConstValue::Slice { data, start, end } => {
-                assume!(end > start); // The Rust compiler should ensure this.
-                let size = end - start;
+            ConstValue::Slice { data, .. } => {
+                let size = data.inner().size().bytes_usize();
+                // The Rust compiler should ensure this.
+                assume!(size > 0);
                 let bytes = data
                     .inner()
                     .get_bytes_strip_provenance(
                         &self.bv.tcx,
                         alloc_range(
-                            rustc_target::abi::Size::from_bytes(start as u64),
+                            rustc_target::abi::Size::from_bytes(0),
                             rustc_target::abi::Size::from_bytes(size as u64),
                         ),
                     )
                     .unwrap();
-                let slice = &bytes[start..end];
+                let slice = &bytes[..size];
                 match lty.kind() {
                     // todo: is this case possible? The comment suggests not.
                     TyKind::Array(elem_type, length) => {
@@ -3416,7 +3412,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             // deserialize that and return an heap block that represents the closure state + func ptr
             TyKind::Closure(def_id, args)
             | TyKind::FnDef(def_id, args)
-            | TyKind::Generator(def_id, args, ..)
+            | TyKind::Coroutine(def_id, args)
             | TyKind::Alias(
                 rustc_middle::ty::Opaque,
                 rustc_middle::ty::AliasTy { def_id, args, .. },
@@ -3615,9 +3611,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                             TyKind::Adt(adt_def, _) => adt_def
                                 .discriminants(self.bv.tcx)
                                 .find(|(_, var)| var.val == data),
-                            TyKind::Generator(def_id, args, _) => {
-                                let generator = args.as_generator();
-                                generator
+                            TyKind::Coroutine(def_id, args) => {
+                                let coroutine = args.as_coroutine();
+                                coroutine
                                     .discriminants(*def_id, self.bv.tcx)
                                     .find(|(_, var)| var.val == data)
                             }
@@ -3780,6 +3776,87 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
         )
     }
 
+    fn make_const_pointer_from_scalar(
+        &mut self,
+        ty: Ty<'tcx>,
+        bytes: &[u8],
+        size: u64,
+        align: u128,
+    ) -> Rc<AbstractValue> {
+        match ty.kind() {
+            TyKind::Array(_, _) | TyKind::Str => {
+                self.make_const_pointer_value_and_path_from_scalar(ty, bytes, size, align)
+                    .0
+            }
+            TyKind::Adt(_, _) if size == 0 && bytes.is_empty() => {
+                self.make_const_pointer_value_and_path_from_scalar(ty, bytes, size, align)
+                    .0
+            }
+            TyKind::Ref(_, target_ty, _) => {
+                let path = match target_ty.kind() {
+                    TyKind::Array(_, _) | TyKind::Str => {
+                        self.make_const_pointer_value_and_path_from_scalar(
+                            *target_ty, bytes, size, align,
+                        )
+                        .1
+                    }
+                    TyKind::Adt(_, _) if size == 0 && bytes.is_empty() => {
+                        self.make_const_pointer_value_and_path_from_scalar(
+                            *target_ty, bytes, size, align,
+                        )
+                        .1
+                    }
+                    TyKind::Ref(_, nested_ty, _) => {
+                        let value =
+                            self.make_const_pointer_from_scalar(*nested_ty, bytes, size, align);
+                        Path::new_computed(value)
+                    }
+                    _ => assume_unreachable!("ConstValue::Ptr with type {:?}", target_ty),
+                };
+                AbstractValue::make_reference(path)
+            }
+            _ => assume_unreachable!("ConstValue::Scalar with type {:?}", ty),
+        }
+    }
+
+    fn make_const_pointer_value_and_path_from_scalar(
+        &mut self,
+        ty: Ty<'tcx>,
+        bytes: &[u8],
+        size: u64,
+        align: u128,
+    ) -> (Rc<AbstractValue>, Rc<Path>) {
+        match ty.kind() {
+            TyKind::Array(elem_type, length) => {
+                let length = self.bv.get_array_length(length);
+                let (array_value, array_path) = self.get_heap_array_and_path(ty, size as usize);
+                self.deserialize_constant_array(array_path.clone(), bytes, length, *elem_type);
+                (array_value, array_path)
+            }
+            TyKind::Adt(_, _) if size == 0 && bytes.is_empty() => {
+                self.bv
+                    .get_new_heap_block(Rc::new(0u128.into()), Rc::new(align.into()), false, ty)
+            }
+            TyKind::Str => {
+                let s = std::str::from_utf8(bytes).expect("non utf8 str");
+                let string_const = &mut self.bv.cv.constant_value_cache.get_string_for(s);
+                let string_val: Rc<AbstractValue> = Rc::new(string_const.clone().into());
+
+                let len_val: Rc<AbstractValue> =
+                    Rc::new(ConstantDomain::U128(s.len() as u128).into());
+
+                let str_path = Path::new_computed(string_val.clone());
+                self.bv
+                    .update_value_at(str_path.clone(), string_val.clone());
+
+                let len_path = Path::new_length(str_path.clone());
+                self.bv.update_value_at(len_path, len_val);
+                (string_val, str_path)
+            }
+            _ => assume_unreachable!("ConstValue::Scalar with a ref type {:?}", ty),
+        }
+    }
+
     /// The anonymous type of a function declaration/definition. Each
     /// function has a unique type, which is output (for a function
     /// named `foo` returning an `i32`) as `fn() -> i32 {foo}`.
@@ -3913,8 +3990,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     let len_path = Path::new_length(base_path.clone());
                     self.bv.update_value_at(len_path, len_val);
                 }
-                TyKind::Closure(def_id, generic_args)
-                | TyKind::Generator(def_id, generic_args, ..) => {
+                TyKind::Closure(def_id, generic_args) | TyKind::Coroutine(def_id, generic_args) => {
                     let func_const = self.visit_function_reference(*def_id, ty, Some(generic_args));
                     let func_val = Rc::new(func_const.clone().into());
                     self.bv
@@ -3925,7 +4001,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     rustc_middle::ty::AliasTy { def_id, .. },
                 ) => {
                     if let TyKind::Closure(def_id, generic_args)
-                    | TyKind::Generator(def_id, generic_args, _) =
+                    | TyKind::Coroutine(def_id, generic_args) =
                         self.bv.tcx.type_of(*def_id).skip_binder().kind()
                     {
                         let func_const =
@@ -4007,7 +4083,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         &[*elem],
                     );
                 }
-                mir::ProjectionElem::OpaqueCast(_) => {
+                mir::ProjectionElem::OpaqueCast(_) | mir::ProjectionElem::Subtype(_) => {
                     continue;
                 }
                 mir::ProjectionElem::Subslice { .. } => {}
@@ -4090,7 +4166,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 };
                 PathSelector::Downcast(name_str, index.as_usize(), tag_value)
             }
-            mir::ProjectionElem::OpaqueCast(_) => {
+            mir::ProjectionElem::OpaqueCast(_) | mir::ProjectionElem::Subtype(_) => {
                 // Dummy selector that will be ignored by caller.
                 PathSelector::Deref
             }
