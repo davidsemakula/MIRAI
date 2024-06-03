@@ -2854,11 +2854,12 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
         warn: bool,
     ) {
         if self.block_visitor.bv.check_for_errors
-            && !self
-                .block_visitor
-                .bv
-                .already_reported_errors_for_call_to
-                .contains(&self.callee_fun_val)
+            && (self.block_visitor.bv.cv.options.diag_level == DiagLevel::Paranoid
+                || !self
+                    .block_visitor
+                    .bv
+                    .already_reported_errors_for_call_to
+                    .contains(&self.callee_fun_val))
         {
             self.block_visitor
                 .emit_diagnostic_for_precondition(precondition, condition, warn);
