@@ -3750,6 +3750,11 @@ pub mod core {
                     assume!(_self < slice.len());
                     &(*slice)[_self]
                 }
+
+                pub fn index__core_array_u8_usize(_self: usize, slice: &[u8]) -> &u8 {
+                    assume!(_self < slice.len());
+                    &(*slice)[_self]
+                }
             }
 
             pub mod IndexMut {
@@ -3757,6 +3762,11 @@ pub mod core {
                     _self: usize,
                     slice: &mut [u8],
                 ) -> &mut u8 {
+                    assume!(_self < slice.len());
+                    &mut (*slice)[_self]
+                }
+
+                pub fn index_mut__core_array_u8_usize(_self: usize, slice: &mut [u8]) -> &mut u8 {
                     assume!(_self < slice.len());
                     &mut (*slice)[_self]
                 }
