@@ -35,7 +35,7 @@ impl ExpectedErrors {
     #[logfn_inputs(TRACE)]
     pub fn check_messages(&mut self, diagnostics: Vec<Diagnostic>) -> bool {
         for diag in diagnostics.iter() {
-            if !self.remove_message(&diag.span, Self::expect_str(&diag.messages()[0].0)) {
+            if !self.remove_message(&diag.span, Self::expect_str(&diag.messages[0].0)) {
                 return false;
             }
             for child in &diag.children {

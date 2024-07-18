@@ -230,7 +230,7 @@ impl<'tcx> TypeVisitor<'tcx> {
 
     /// Returns a parameter environment for the current function.
     pub fn get_param_env(&self) -> rustc_middle::ty::ParamEnv<'tcx> {
-        let env_def_id = if self.tcx.is_closure(self.def_id) {
+        let env_def_id = if self.tcx.is_closure_or_coroutine(self.def_id) {
             self.tcx.typeck_root_def_id(self.def_id)
         } else {
             self.def_id
@@ -490,7 +490,12 @@ impl<'tcx> TypeVisitor<'tcx> {
                             }
                             TyKind::Closure(def_id, args) => {
                                 let closure_substs = args.as_closure();
-                                if closure_substs.is_valid() {
+                                let is_valid = closure_substs.args.len() >= 3
+                                    && matches!(
+                                        closure_substs.tupled_upvars_ty().kind(),
+                                        rustc_middle::ty::TyKind::Tuple(_)
+                                    );
+                                if is_valid {
                                     return *closure_substs
                                         .upvar_tys()
                                         .get(*ordinal)
@@ -509,7 +514,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                                 if let Some(field_tys) = tuple_types.nth(*ordinal) {
                                     return Ty::new_tup_from_iter(self.tcx, field_tys);
                                 }
-                                info!("generator field not found {:?} {:?}", def_id, ordinal);
+                                info!("coroutine field not found {:?} {:?}", def_id, ordinal);
                                 return self.tcx.types.never;
                             }
                             TyKind::Ref(_, t, _) if matches!(t.kind(), TyKind::Closure(..)) => {
@@ -941,8 +946,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                         }
                     }
                 }
-                mir::ProjectionElem::Subtype(ty) => *ty,
-                mir::ProjectionElem::OpaqueCast(ty) => *ty,
+                mir::ProjectionElem::OpaqueCast(ty) | mir::ProjectionElem::Subtype(ty) => *ty,
                 mir::ProjectionElem::Downcast(_, ordinal) => {
                     if let TyKind::Adt(def, args) = base_ty.kind() {
                         if ordinal.index() >= def.variants().len() {

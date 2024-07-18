@@ -586,7 +586,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
     fn visit_call(
         &mut self,
         func: &mir::Operand<'tcx>,
-        args: &[mir::Operand<'tcx>],
+        args: &[rustc_span::source_map::Spanned<mir::Operand<'tcx>>],
         destination: mir::Place<'tcx>,
         target: Option<mir::BasicBlock>,
         unwind: mir::UnwindAction,
@@ -642,12 +642,17 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .specialize_generic_args(generic_args, &self.type_visitor().generic_argument_map);
         let actual_args: Vec<(Rc<Path>, Rc<AbstractValue>)> = args
             .iter()
-            .map(|arg| (self.get_operand_path(arg), self.visit_operand(arg)))
+            .map(|arg| {
+                (
+                    self.get_operand_path(&arg.node),
+                    self.visit_operand(&arg.node),
+                )
+            })
             .collect();
         let actual_argument_types: Vec<Ty<'tcx>> = args
             .iter()
             .map(|arg| {
-                let arg_ty = self.get_operand_rustc_type(arg);
+                let arg_ty = self.get_operand_rustc_type(&arg.node);
                 if utils::is_concrete(arg_ty.kind()) {
                     arg_ty
                 } else {
@@ -658,7 +663,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     if utils::is_concrete(specialized_ty.kind()) {
                         specialized_ty
                     } else {
-                        let path = self.get_operand_path(arg);
+                        let path = self.get_operand_path(&arg.node);
                         self.type_visitor()
                             .get_path_rustc_type(&path, self.bv.current_span)
                     }
@@ -1412,7 +1417,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 tag_name
                             ),
                         );
-                        self.bv.emit_diagnostic(warning.clone());
+                        self.bv.emit_diagnostic(warning);
                     } else if promotable_entry_condition.is_none()
                         || tag_check.extract_promotable_disjuncts(false).is_none()
                     {
@@ -1425,7 +1430,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 because it contains local variables",
                             ),
                         );
-                        self.bv.emit_diagnostic(warning.clone());
+                        self.bv.emit_diagnostic(warning);
                     }
                 }
 
@@ -3424,7 +3429,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             // deserialize that and return an heap block that represents the closure state + func ptr
             TyKind::Closure(def_id, args)
             | TyKind::FnDef(def_id, args)
-            | TyKind::Coroutine(def_id, args, ..)
+            | TyKind::Coroutine(def_id, args)
             | TyKind::Alias(
                 rustc_middle::ty::Opaque,
                 rustc_middle::ty::AliasTy { def_id, args, .. },
@@ -3624,8 +3629,8 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 .discriminants(self.bv.tcx)
                                 .find(|(_, var)| var.val == data),
                             TyKind::Coroutine(def_id, args) => {
-                                let generator = args.as_coroutine();
-                                generator
+                                let coroutine = args.as_coroutine();
+                                coroutine
                                     .discriminants(*def_id, self.bv.tcx)
                                     .find(|(_, var)| var.val == data)
                             }
@@ -4014,8 +4019,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         &[*elem],
                     );
                 }
-                mir::ProjectionElem::Subtype { .. } => continue,
-                mir::ProjectionElem::OpaqueCast(_) => {
+                mir::ProjectionElem::OpaqueCast(_) | mir::ProjectionElem::Subtype(_) => {
                     continue;
                 }
                 mir::ProjectionElem::Subslice { .. } => {}
@@ -4098,11 +4102,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 };
                 PathSelector::Downcast(name_str, index.as_usize(), tag_value)
             }
-            mir::ProjectionElem::Subtype(_) => {
-                // Dummy selector that will be ignored by caller.
-                PathSelector::Deref
-            }
-            mir::ProjectionElem::OpaqueCast(_) => {
+            mir::ProjectionElem::OpaqueCast(_) | mir::ProjectionElem::Subtype(_) => {
                 // Dummy selector that will be ignored by caller.
                 PathSelector::Deref
             }

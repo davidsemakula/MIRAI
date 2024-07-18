@@ -18,6 +18,7 @@ use std::time::Instant;
 use log::*;
 use log_derive::{logfn, logfn_inputs};
 
+use itertools::Itertools;
 use mirai_annotations::*;
 use rustc_errors::{Diagnostic, DiagnosticBuilder};
 use rustc_hir::def_id::{DefId, DefIndex};
@@ -257,7 +258,7 @@ impl<'compilation, 'tcx> CrateVisitor<'compilation, 'tcx> {
             let mut diags = vec![];
             for (_, dbs) in self.diagnostics_for.drain() {
                 for db in dbs.into_iter() {
-                    db.buffer(&mut diags);
+                    diags.push(db.deref().clone());
                 }
             }
             if !expected_errors.check_messages(diags) {
@@ -266,11 +267,9 @@ impl<'compilation, 'tcx> CrateVisitor<'compilation, 'tcx> {
                     .fatal(format!("test failed: {}", self.file_name));
             }
         } else {
-            let mut diagnostics: Vec<&mut DiagnosticBuilder<'_, ()>> =
-                self.diagnostics_for.values_mut().flatten().collect();
             fn compare_diagnostics<'a>(
-                x: &&mut DiagnosticBuilder<'a, ()>,
-                y: &&mut DiagnosticBuilder<'a, ()>,
+                x: &DiagnosticBuilder<'a, ()>,
+                y: &DiagnosticBuilder<'a, ()>,
             ) -> Ordering {
                 let xd: &Diagnostic = x.deref();
                 let yd: &Diagnostic = y.deref();
@@ -282,11 +281,15 @@ impl<'compilation, 'tcx> CrateVisitor<'compilation, 'tcx> {
                     Ordering::Equal
                 }
             }
-            diagnostics.sort_by(compare_diagnostics);
-            fn emit(db: &mut DiagnosticBuilder<'_, ()>) {
+            fn emit(db: DiagnosticBuilder<'_, ()>) {
                 db.emit();
             }
-            diagnostics.into_iter().for_each(emit);
+
+            self.diagnostics_for
+                .drain()
+                .flat_map(|(_, diags)| diags)
+                .sorted_by(compare_diagnostics)
+                .for_each(emit);
         }
     }
 }
