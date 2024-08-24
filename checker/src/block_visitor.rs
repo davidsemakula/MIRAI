@@ -2722,7 +2722,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
     ) -> Rc<AbstractValue> {
         let mut def_id = unevaluated.def;
         let def_ty = self.bv.cv.tcx.type_of(def_id);
-        let args = self
+        let mut args = self
             .type_visitor()
             .specialize_generic_args(unevaluated.args, &self.type_visitor().generic_argument_map);
         self.bv.cv.generic_args_cache.insert(def_id, args);
@@ -2740,7 +2740,10 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         rustc_middle::ty::Instance::resolve(self.bv.tcx, param_env, def_id, args)
                     {
                         def_id = instance.def.def_id();
+                        args = instance.args;
                         trace!("resolved it to {:?}", def_id);
+                        trace!("resolved args {:?}", args);
+                        self.bv.cv.generic_args_cache.insert(def_id, args);
                     }
                 }
                 if self.bv.tcx.is_mir_available(def_id) {
