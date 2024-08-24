@@ -2148,7 +2148,13 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                             let target_type = self
                                 .type_visitor()
                                 .get_path_rustc_type(&target_path, self.bv.current_span);
-                            if self.type_visitor().is_slice_pointer(target_type.kind()) {
+                            let source_type = self
+                                .type_visitor()
+                                .get_path_rustc_type(&p, self.bv.current_span);
+                            let deref_source_type = self
+                                .type_visitor()
+                                .get_dereferenced_type(source_type);
+                            if self.type_visitor().is_slice_pointer(target_type.kind()) && matches!(deref_source_type.kind(), TyKind::Array(..)) {
                                 self.convert_sized_array_pointer_to_unsized_pointer(p, value, &target_path)
                             } else {
                                 // just copy
