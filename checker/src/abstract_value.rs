@@ -5615,7 +5615,8 @@ impl AbstractValueTrait for Rc<AbstractValue> {
                     acc.widen(&result.get_as_interval())
                 }),
             Expression::TaggedExpression { operand, .. } => operand.get_as_interval(),
-            Expression::Variable { var_type, .. } => IntervalDomain::from(*var_type),
+            Expression::Variable { var_type, .. }
+            | Expression::InitialParameterValue { var_type, .. } => IntervalDomain::from(*var_type),
             Expression::WidenedJoin { operand, .. } => {
                 let interval = operand.get_as_interval();
                 if interval.is_bottom() {
