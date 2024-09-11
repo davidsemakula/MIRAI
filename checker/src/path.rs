@@ -419,6 +419,36 @@ impl Path {
         }
     }
 
+    /// Returns true if the path contains a value whose expression is a parameter.
+    #[logfn_inputs(TRACE)]
+    pub fn contains_param(&self) -> bool {
+        match &self.value {
+            PathEnum::Parameter { .. } => true,
+            PathEnum::Computed { value } | PathEnum::Offset { value } => {
+                value.expression.contains_param()
+            }
+            PathEnum::HeapBlock { .. }
+            | PathEnum::LocalVariable { .. }
+            | PathEnum::Result
+            | PathEnum::StaticVariable { .. }
+            | PathEnum::PhantomData
+            | PathEnum::PromotedConstant { .. } => false,
+            PathEnum::QualifiedPath {
+                qualifier,
+                selector,
+                ..
+            } => {
+                qualifier.contains_param() || {
+                    if let PathSelector::Index(value) = selector.as_ref() {
+                        value.expression.contains_param()
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
     /// Returns an abstract value for "true if the path is the same runtime location as other"
     #[logfn_inputs(TRACE)]
     pub fn equals(&self, other: &Rc<Path>) -> Rc<AbstractValue> {

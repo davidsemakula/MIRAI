@@ -840,6 +840,93 @@ impl Expression {
         }
     }
 
+    /// Returns true if any part of the expression is a parameter value.
+    #[logfn_inputs(TRACE)]
+    pub fn contains_param(&self) -> bool {
+        match &self {
+            Expression::InitialParameterValue { .. } => true,
+            Expression::Add { left, right }
+            | Expression::AddOverflows { left, right, .. }
+            | Expression::And { left, right }
+            | Expression::BitAnd { left, right }
+            | Expression::BitOr { left, right }
+            | Expression::BitXor { left, right }
+            | Expression::Div { left, right }
+            | Expression::Equals { left, right }
+            | Expression::GreaterOrEqual { left, right }
+            | Expression::GreaterThan { left, right }
+            | Expression::IntrinsicBinary { left, right, .. }
+            | Expression::LessOrEqual { left, right }
+            | Expression::LessThan { left, right }
+            | Expression::Mul { left, right }
+            | Expression::MulOverflows { left, right, .. }
+            | Expression::Ne { left, right }
+            | Expression::Offset { left, right }
+            | Expression::Or { left, right }
+            | Expression::Rem { left, right }
+            | Expression::Shl { left, right }
+            | Expression::ShlOverflows { left, right, .. }
+            | Expression::Shr { left, right, .. }
+            | Expression::ShrOverflows { left, right, .. }
+            | Expression::Sub { left, right }
+            | Expression::SubOverflows { left, right, .. }
+            | Expression::Join { left, right, .. } => {
+                left.expression.contains_param() || right.expression.contains_param()
+            }
+            Expression::BitNot { operand, .. }
+            | Expression::Cast { operand, .. }
+            | Expression::IntrinsicBitVectorUnary { operand, .. }
+            | Expression::IntrinsicFloatingPointUnary { operand, .. }
+            | Expression::TaggedExpression { operand, .. }
+            | Expression::Transmute { operand, .. }
+            | Expression::Neg { operand }
+            | Expression::LogicalNot { operand }
+            | Expression::UnknownTagCheck { operand, .. }
+            | Expression::WidenedJoin { operand, .. } => operand.expression.contains_param(),
+            Expression::Bottom
+            | Expression::CompileTimeConstant(..)
+            | Expression::HeapBlock { .. }
+            | Expression::Top
+            | Expression::UninterpretedCall { .. } => false,
+            Expression::ConditionalExpression {
+                condition,
+                consequent,
+                alternate,
+            } => {
+                condition.expression.contains_param()
+                    || consequent.expression.contains_param()
+                    || alternate.expression.contains_param()
+            }
+            Expression::HeapBlockLayout {
+                length, alignment, ..
+            } => length.expression.contains_param() || alignment.expression.contains_param(),
+            Expression::Memcmp {
+                left,
+                right,
+                length,
+            } => {
+                left.expression.contains_param()
+                    || right.expression.contains_param()
+                    || length.expression.contains_param()
+            }
+            Expression::Reference(path)
+            | Expression::UnknownTagField { path }
+            | Expression::Variable { path, .. } => path.contains_param(),
+            Expression::Switch {
+                discriminator,
+                cases,
+                default,
+            } => {
+                discriminator.expression.contains_param()
+                    || default.expression.contains_param()
+                    || cases.iter().any(|(_, v)| v.expression.contains_param())
+            }
+            Expression::UnknownModelField { path, default } => {
+                path.contains_param() || default.expression.contains_param()
+            }
+        }
+    }
+
     /// Returns a value from the enum `TagPropagation` which reflects the expression kind.
     /// If the tag propagation behavior for the expression is not controllable, e.g., for
     /// control-flow expressions such as Conditional or Switch, returns None.

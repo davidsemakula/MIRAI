@@ -1640,6 +1640,10 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
             // The abstract domains are unable to decide if the entry condition is always true.
             // (If it could decide that the condition is always false, we wouldn't be here.)
             // See if the SMT solver can prove that the entry condition is always true.
+            if var_dominated_mul_overflow(&self.current_environment.entry_condition, false) {
+                return (cond_as_bool, entry_cond_as_bool);
+            }
+
             self.smt_solver.set_backtrack_position();
             let smt_expr = {
                 let ec = &self.current_environment.entry_condition.expression;
@@ -1662,6 +1666,9 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
 
     #[logfn_inputs(TRACE)]
     fn solve_condition(&mut self, cond_val: &Rc<AbstractValue>) -> Option<bool> {
+        if var_dominated_mul_overflow(&cond_val, false) {
+            return None;
+        }
         let ce = &cond_val.expression;
         self.smt_solver.set_backtrack_position();
         let cond_smt_expr = self.smt_solver.get_as_smt_predicate(ce);
@@ -2991,5 +2998,32 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                 }
             }
         }
+    }
+}
+
+/// Returns true if the expression contains an overflow "dominated" by the multiplication of 2 variables.
+fn var_dominated_mul_overflow(val: &Rc<AbstractValue>, in_overflow: bool) -> bool {
+    fn var_dominated_op(left: &Rc<AbstractValue>, right: &Rc<AbstractValue>) -> bool {
+        (left.expression.contains_param() || left.expression.contains_local_variable(false))
+            && (right.expression.contains_param()
+                || right.expression.contains_local_variable(false))
+    }
+    match &val.expression {
+        Expression::MulOverflows { left, right, .. } => var_dominated_op(left, right),
+        Expression::Mul { left, right, .. } if in_overflow => var_dominated_op(left, right),
+        Expression::AddOverflows { left, right, .. }
+        | Expression::SubOverflows { left, right, .. } => {
+            var_dominated_mul_overflow(&left, true) || var_dominated_mul_overflow(&right, true)
+        }
+        Expression::And { left, right }
+        | Expression::Or { left, right }
+        | Expression::Join { left, right } => {
+            var_dominated_mul_overflow(&left, in_overflow)
+                || var_dominated_mul_overflow(&right, in_overflow)
+        }
+        Expression::LogicalNot { operand } | Expression::WidenedJoin { operand, .. } => {
+            var_dominated_mul_overflow(&operand, in_overflow)
+        }
+        _ => false,
     }
 }
