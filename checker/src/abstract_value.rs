@@ -3169,6 +3169,40 @@ impl AbstractValueTrait for Rc<AbstractValue> {
         if let Expression::Or { left, right } = &other.expression {
             return self.implies(left) || self.implies(right);
         }
+
+        // x < y => sub_overflows(x - y)
+        // y > x => sub_overflows(x - y)
+        if let Expression::LessThan {
+            left: left_in,
+            right: right_in,
+        }
+        | Expression::GreaterThan {
+            left: right_in,
+            right: left_in,
+        } = &self.expression
+        {
+            if let Expression::SubOverflows {
+                left: left_out,
+                right: right_out,
+                ..
+            } = &other.expression
+            {
+                return left_in == left_out && right_in == right_out;
+            }
+        }
+
+        if let Expression::LogicalNot { operand } = &other.expression {
+            if matches!(
+                self.expression,
+                Expression::Equals { .. }
+                    | Expression::LessThan { .. }
+                    | Expression::LessOrEqual { .. }
+                    | Expression::GreaterThan { .. }
+                    | Expression::GreaterOrEqual { .. }
+            ) {
+                return self.implies_not(operand);
+            }
+        }
         false
     }
 
@@ -3189,6 +3223,53 @@ impl AbstractValueTrait for Rc<AbstractValue> {
         if let Expression::LogicalNot { operand } = &self.expression {
             return operand.eq(other);
         }
+
+        // x >= y => !sub_overflows(x - y)
+        // y <= x => !sub_overflows(x - y)
+        if let Expression::GreaterOrEqual {
+            left: left_in,
+            right: right_in,
+        }
+        | Expression::GreaterThan {
+            left: left_in,
+            right: right_in,
+        }
+        | Expression::Equals {
+            left: left_in,
+            right: right_in,
+        }
+        | Expression::LessThan {
+            left: right_in,
+            right: left_in,
+        }
+        | Expression::LessOrEqual {
+            left: right_in,
+            right: left_in,
+        } = &self.expression
+        {
+            if let Expression::SubOverflows {
+                left: left_out,
+                right: right_out,
+                ..
+            } = &other.expression
+            {
+                return left_in == left_out && right_in == right_out;
+            }
+        }
+
+        if let Expression::LogicalNot { operand } = &other.expression {
+            if matches!(
+                self.expression,
+                Expression::Equals { .. }
+                    | Expression::LessThan { .. }
+                    | Expression::LessOrEqual { .. }
+                    | Expression::GreaterThan { .. }
+                    | Expression::GreaterOrEqual { .. }
+            ) {
+                return self.implies(operand);
+            }
+        }
+
         false
     }
 
