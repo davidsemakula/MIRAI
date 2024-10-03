@@ -2853,19 +2853,20 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
         condition: &Rc<AbstractValue>,
         warn: bool,
     ) {
-        if self.block_visitor.bv.check_for_errors
-            && !self
+        if self.block_visitor.bv.check_for_errors {
+            self.block_visitor
+                .emit_diagnostic_for_precondition(precondition, condition, warn);
+            if !self
                 .block_visitor
                 .bv
                 .already_reported_errors_for_call_to
                 .contains(&self.callee_fun_val)
-        {
-            self.block_visitor
-                .emit_diagnostic_for_precondition(precondition, condition, warn);
-            self.block_visitor
-                .bv
-                .already_reported_errors_for_call_to
-                .insert(self.callee_fun_val.clone());
+            {
+                self.block_visitor
+                    .bv
+                    .already_reported_errors_for_call_to
+                    .insert(self.callee_fun_val.clone());
+            }
         }
     }
 
