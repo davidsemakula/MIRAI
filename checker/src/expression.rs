@@ -19,6 +19,7 @@ use crate::environment::Environment;
 use crate::known_names::KnownNames;
 use crate::path::{Path, PathRoot};
 use crate::tag_domain::Tag;
+use crate::utils;
 
 /// Closely based on the expressions found in MIR.
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -1629,15 +1630,13 @@ impl ExpressionType {
             I32 => 32,
             I64 => 64,
             I128 => 128,
-            Isize => 64,
+            Isize | Usize | ThinPointer => utils::target_bit_length() as u8,
             U8 => 8,
             U16 => 16,
             U32 => 32,
             U64 => 64,
             U128 => 128,
             Unit => 0,
-            Usize => 64,
-            ThinPointer => 64,
             NonPrimitive => 128,
         }
     }
@@ -1658,13 +1657,13 @@ impl ExpressionType {
             I32 => ConstantDomain::I128(i32::MAX as i128),
             I64 => ConstantDomain::I128(i64::MAX as i128),
             I128 => ConstantDomain::I128(i128::MAX),
-            Isize => ConstantDomain::I128(isize::MAX as i128),
+            Isize => ConstantDomain::I128(utils::isize_max()),
             U8 => ConstantDomain::U128(u8::MAX as u128),
             U16 => ConstantDomain::U128(u16::MAX as u128),
             U32 => ConstantDomain::U128(u32::MAX as u128),
             U64 => ConstantDomain::U128(u64::MAX as u128),
             U128 => ConstantDomain::U128(u128::MAX),
-            Usize => ConstantDomain::U128(usize::MAX as u128),
+            Usize => ConstantDomain::U128(utils::usize_max()),
             _ => ConstantDomain::Bottom,
         }
     }
@@ -1685,13 +1684,8 @@ impl ExpressionType {
             I32 => ConstantDomain::I128(i32::MIN as i128),
             I64 => ConstantDomain::I128(i64::MIN as i128),
             I128 => ConstantDomain::I128(i128::MIN),
-            Isize => ConstantDomain::I128(isize::MIN as i128),
-            U8 => ConstantDomain::U128(u8::MIN as u128),
-            U16 => ConstantDomain::U128(u16::MIN as u128),
-            U32 => ConstantDomain::U128(u32::MIN as u128),
-            U64 => ConstantDomain::U128(u64::MIN as u128),
-            U128 => ConstantDomain::U128(u128::MIN),
-            Usize => ConstantDomain::U128(usize::MIN as u128),
+            Isize => ConstantDomain::I128(utils::isize_min()),
+            U8 | U16 | U32 | U64 | U128 | Usize => ConstantDomain::U128(0_u128),
             _ => ConstantDomain::Bottom,
         }
     }
@@ -1708,7 +1702,7 @@ impl ExpressionType {
             U16 => Rc::new(ConstantDomain::U128((u16::MAX) as u128 + 1)),
             U32 => Rc::new(ConstantDomain::U128((u32::MAX) as u128 + 1)),
             U64 => Rc::new(ConstantDomain::U128((u64::MAX) as u128 + 1)),
-            Usize => Rc::new(ConstantDomain::U128((usize::MAX) as u128 + 1)),
+            Usize => Rc::new(ConstantDomain::U128(utils::usize_max() + 1)),
             _ => Rc::new(ConstantDomain::Bottom),
         }
     }
@@ -1725,7 +1719,7 @@ impl ExpressionType {
             U16 => Rc::new(ConstantDomain::U128((u16::MAX) as u128 + 1).into()),
             U32 => Rc::new(ConstantDomain::U128((u32::MAX) as u128 + 1).into()),
             U64 => Rc::new(ConstantDomain::U128((u64::MAX) as u128 + 1).into()),
-            Usize => Rc::new(ConstantDomain::U128((usize::MAX) as u128 + 1).into()),
+            Usize => Rc::new(ConstantDomain::U128(utils::usize_max() + 1).into()),
             _ => Rc::new(ConstantDomain::Bottom.into()),
         }
     }
