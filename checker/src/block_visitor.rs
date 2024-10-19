@@ -3298,7 +3298,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 let int_ptr = bytes.as_ptr() as *const isize;
                 let i = self.bv.get_i128_const_val((*int_ptr) as i128);
                 self.bv.update_value_at(target_path, i);
-                let size = std::mem::size_of::<isize>();
+                let size = utils::target_byte_length();
                 &bytes[size..]
             },
             TyKind::Int(IntTy::I8) => unsafe {
@@ -3335,7 +3335,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 let uint_ptr = bytes.as_ptr() as *const usize;
                 let u = self.bv.get_u128_const_val((*uint_ptr) as u128);
                 self.bv.update_value_at(target_path, u);
-                let size = std::mem::size_of::<isize>();
+                let size = utils::target_byte_length();
                 &bytes[size..]
             },
             TyKind::Uint(UintTy::U8) => unsafe {

@@ -532,3 +532,48 @@ pub fn pretty_print_mir(tcx: TyCtxt<'_>, def_id: DefId) {
         let _ = stdout.flush();
     }
 }
+
+/// Returns the target pointer size in bits.
+pub fn target_bit_length() -> usize {
+    match std::env::var("MIRAI_TARGET_POINTER_WIDTH").as_deref() {
+        Ok("16") => 16,
+        Ok("32") => 32,
+        Ok("64") => 64,
+        _ => std::mem::size_of::<isize>() * 8,
+    }
+}
+
+/// Returns the target pointer size in bytes.
+pub fn target_byte_length() -> usize {
+    target_bit_length() / 8
+}
+
+/// Returns the smallest value that can be represented by the `isize` type.
+pub fn isize_min() -> i128 {
+    match target_bit_length() {
+        16 => i16::MIN as i128,
+        32 => i32::MIN as i128,
+        64 => i64::MIN as i128,
+        _ => isize::MIN as i128,
+    }
+}
+
+/// Returns the largest value that can be represented by the `isize` type.
+pub fn isize_max() -> i128 {
+    match target_bit_length() {
+        16 => i16::MAX as i128,
+        32 => i32::MAX as i128,
+        64 => i64::MAX as i128,
+        _ => isize::MAX as i128,
+    }
+}
+
+/// Returns the largest value that can be represented by the `usize` type.
+pub fn usize_max() -> u128 {
+    match target_bit_length() {
+        16 => u16::MAX as u128,
+        32 => u32::MAX as u128,
+        64 => u64::MAX as u128,
+        _ => usize::MAX as u128,
+    }
+}
