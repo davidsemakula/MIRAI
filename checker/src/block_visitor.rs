@@ -2987,16 +2987,24 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         // The Rust compiler should ensure this.
                         assume!(alloc_len > offset_bytes);
                         let size = alloc_len - offset_bytes;
-                        let bytes = alloc
+                        let bytes_range = alloc_range(
+                            ptr.into_parts().1,
+                            rustc_target::abi::Size::from_bytes(size),
+                        );
+                        let Ok(bytes) = alloc
                             .inner()
-                            .get_bytes_strip_provenance(
-                                &self.bv.tcx,
-                                alloc_range(
-                                    ptr.into_parts().1,
-                                    rustc_target::abi::Size::from_bytes(size),
-                                ),
-                            )
-                            .unwrap();
+                            .get_bytes_strip_provenance(&self.bv.tcx, bytes_range)
+                        else {
+                            // TODO: Properly handle bytes in this case.
+                            let align = alloc.inner().align.bytes();
+                            let (heap_value, _) = self.bv.get_new_heap_block(
+                                Rc::new((size as u128).into()),
+                                Rc::new((align as u128).into()),
+                                false,
+                                lty,
+                            );
+                            return heap_value;
+                        };
                         match lty.kind() {
                             TyKind::Array(elem_type, length) => {
                                 let length = self.bv.get_array_length(length);
@@ -3007,11 +3015,11 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 );
                                 array_value
                             }
-                            TyKind::Ref(_, t, _) => {
-                                if let TyKind::Array(elem_type, length) = t.kind() {
+                            TyKind::Ref(_, t, _) => match t.kind() {
+                                TyKind::Array(elem_type, length) => {
                                     let length = self.bv.get_array_length(length);
                                     let (_, array_path) =
-                                        self.get_heap_array_and_path(lty, size as usize);
+                                        self.get_heap_array_and_path(*t, size as usize);
                                     self.deserialize_constant_array(
                                         array_path.clone(),
                                         bytes,
@@ -3019,10 +3027,31 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                         *elem_type,
                                     );
                                     AbstractValue::make_reference(array_path)
-                                } else {
+                                }
+                                TyKind::Adt(_, _) => {
+                                    let align = alloc.inner().align.bytes();
+                                    let (_, heap_path) = self.bv.get_new_heap_block(
+                                        Rc::new((size as u128).into()),
+                                        Rc::new((align as u128).into()),
+                                        false,
+                                        *t,
+                                    );
+                                    self.deserialize_constant_bytes(heap_path.clone(), bytes, *t);
+                                    AbstractValue::make_reference(heap_path)
+                                }
+                                TyKind::Int(_) | TyKind::Uint(_) => {
+                                    // The Rust compiler should ensure this.
+                                    assume!(bytes.len() == size as usize);
+                                    // TODO: Properly set data value for this case.
+                                    let int_val =
+                                        self.get_constant_value_from_scalar(*t, 0, size as usize);
+                                    let int_path = Path::new_computed(int_val);
+                                    AbstractValue::make_reference(int_path)
+                                }
+                                _ => {
                                     assume_unreachable!("ConstValue::Ptr with type {:?}", lty);
                                 }
-                            }
+                            },
                             _ => {
                                 assume_unreachable!("ConstValue::Scalar with type {:?}", lty);
                             }
