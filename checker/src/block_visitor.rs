@@ -2997,6 +2997,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                             ptr.into_parts().1,
                             rustc_target::abi::Size::from_bytes(size),
                         );
+                        let mut align = alloc.inner().align.bytes();
                         let bytes = if size > 0
                             && alloc.inner().provenance().range_empty(range, &self.bv.tcx)
                         {
@@ -3014,15 +3015,32 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                             rustc_target::abi::Size::from_bytes(0),
                                             rustc_target::abi::Size::from_bytes(size),
                                         );
+                                        align = alloc.inner().align.bytes();
                                         bytes = alloc
                                             .inner()
                                             .get_bytes_strip_provenance(&self.bv.tcx, range)
                                             .unwrap();
                                     }
-                                    _ => assume_unreachable!(
-                                        "ConstValue::Scalar with type {:?}",
-                                        lty
-                                    ),
+                                    _ => {
+                                        let is_thread_local_key = match lty.kind() {
+                                            TyKind::Ref(_, t, _) => t.ty_adt_def(),
+                                            _ => None,
+                                        }
+                                        .is_some_and(|adt_def| {
+                                            let adt_def_id = adt_def.did();
+                                            let crate_name =
+                                                self.bv.tcx.crate_name(adt_def_id.krate);
+                                            let item_name = self.bv.tcx.item_name(adt_def_id);
+                                            crate_name.as_str() == "std"
+                                                && item_name.as_str() == "LocalKey"
+                                        });
+                                        if !is_thread_local_key {
+                                            assume_unreachable!(
+                                                "ConstValue::Scalar with type {:?}",
+                                                lty
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             bytes
@@ -3053,7 +3071,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 TyKind::Adt(..) => {
                                     let (_heap_val, heap_path) = self.bv.get_new_heap_block(
                                         Rc::new((bytes.len() as u128).into()),
-                                        Rc::new(1u128.into()),
+                                        Rc::new((align as u128).into()),
                                         false,
                                         lty,
                                     );
@@ -3068,6 +3086,22 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                         );
                                     }
                                     AbstractValue::make_reference(heap_path)
+                                }
+                                TyKind::Ref(_, t, _) if matches!(t.kind(), TyKind::Str) => {
+                                    let s = std::str::from_utf8(bytes).expect("non utf8 str");
+                                    let string_const =
+                                        &mut self.bv.cv.constant_value_cache.get_string_for(s);
+                                    let string_val: Rc<AbstractValue> =
+                                        Rc::new(string_const.clone().into());
+                                    let len_val: Rc<AbstractValue> =
+                                        Rc::new(ConstantDomain::U128(s.len() as u128).into());
+
+                                    let str_path = Path::new_computed(string_val.clone());
+                                    self.bv.update_value_at(str_path.clone(), string_val);
+
+                                    let len_path = Path::new_length(str_path.clone());
+                                    self.bv.update_value_at(len_path, len_val);
+                                    AbstractValue::make_reference(str_path)
                                 }
                                 _ => {
                                     assume_unreachable!(
