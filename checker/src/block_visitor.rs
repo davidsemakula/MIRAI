@@ -3103,6 +3103,32 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                     self.bv.update_value_at(len_path, len_val);
                                     AbstractValue::make_reference(str_path)
                                 }
+                                TyKind::Int(_) | TyKind::Uint(_) => {
+                                    // The Rust compiler should ensure this.
+                                    assume!(bytes.len() == size as usize);
+                                    let target_len = std::mem::size_of::<u128>();
+                                    let padding =
+                                        std::iter::repeat(0u8).take(target_len - size as usize);
+                                    let padded_bytes = if cfg!(target_endian = "big") {
+                                        bytes
+                                            .to_vec()
+                                            .into_iter()
+                                            .chain(padding)
+                                            .collect::<Vec<_>>()
+                                    } else {
+                                        padding.chain(bytes.to_vec()).collect::<Vec<_>>()
+                                    }
+                                    .try_into()
+                                    .expect("Expected [u8; 16]");
+                                    let data = u128::from_ne_bytes(padded_bytes);
+                                    let int_val = self.get_constant_value_from_scalar(
+                                        *t,
+                                        data,
+                                        size as usize,
+                                    );
+                                    let int_path = Path::new_computed(int_val);
+                                    AbstractValue::make_reference(int_path)
+                                }
                                 _ => {
                                     assume_unreachable!(
                                         "ConstValue::Ptr with type {:?} {:?}",
