@@ -75,7 +75,7 @@ fn main() {
     info!("MIRAI options modified by command line: {:?}", options);
 
     rustc_driver::install_ice_hook(rustc_driver::DEFAULT_BUG_REPORT_URL, |_| ());
-    let result = rustc_driver::catch_fatal_errors(|| {
+    let exit_code = rustc_driver::catch_with_exit_code(|| {
         // Add back the binary name
         rustc_command_line_arguments.insert(0, args[0].clone());
 
@@ -136,11 +136,6 @@ fn main() {
         let compiler =
             rustc_driver::RunCompiler::new(&rustc_command_line_arguments, &mut callbacks);
         compiler.run()
-    })
-    .and_then(|result| result);
-    let exit_code = match result {
-        Ok(_) => rustc_driver::EXIT_SUCCESS,
-        Err(_) => rustc_driver::EXIT_FAILURE,
-    };
+    });
     std::process::exit(exit_code);
 }
