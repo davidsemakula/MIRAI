@@ -930,7 +930,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                     path_cond = Some(true);
                 };
 
-                let span = self.block_visitor.bv.current_span.source_callsite();
+                let span = self.block_visitor.bv.current_span;
 
                 if path_cond.unwrap_or(false)
                     && self.block_visitor.bv.function_being_analyzed_is_root()
@@ -954,7 +954,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                             condition: Rc::new(abstract_value::FALSE),
                             message: msg,
                             provenance: None,
-                            spans: vec![],
+                            spans: vec![span],
                         };
                         self.block_visitor.bv.preconditions.push(precondition);
                     }
@@ -1001,11 +1001,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                             condition,
                             message: msg,
                             provenance: None,
-                            spans: if self.block_visitor.bv.def_id.is_local() {
-                                vec![span]
-                            } else {
-                                vec![] // The span is likely inside a standard macro, i.e. panic! etc.
-                            },
+                            spans: vec![span],
                         };
                         self.block_visitor.bv.preconditions.push(precondition);
                     } else {

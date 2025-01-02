@@ -3765,18 +3765,20 @@ pub mod core {
     }
 
     pub mod option {
-        pub fn expect_failed() {
+        pub fn expect_failed(msg: &str) -> ! {
             // We currently treat expect as an explicit assumption made by the programmer for
             // reasons that are beyond the analyzer.
-            assume_unreachable!();
+            //assume_unreachable!();
+            panic!("called `Option::expect()` on a `None` value")
         }
+
         pub mod implement {
             pub mod cloned {
                 default_contract!(closure);
             }
         }
-        pub fn unwrap_failed() {
-            panic!("called `Option::unwrap()` on a `None` value");
+        pub fn unwrap_failed() -> ! {
+            panic!("called `Option::unwrap()` on a `None` value")
         }
     }
 
@@ -3849,8 +3851,8 @@ pub mod core {
     }
 
     pub mod result {
-        fn unwrap_failed() -> ! {
-            panic!("result unwrap failed")
+        pub fn unwrap_failed(msg: &str, error: &dyn std::fmt::Debug) -> ! {
+            panic!("called `Result::unwrap()` on an `Err` value")
         }
     }
 
