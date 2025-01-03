@@ -3766,6 +3766,7 @@ pub mod core {
 
     pub mod option {
         pub fn expect_failed(msg: &str) -> ! {
+            // NOTE: We intentionally undo this panic! suppression for `pallet-verifier`.
             // We currently treat expect as an explicit assumption made by the programmer for
             // reasons that are beyond the analyzer.
             //assume_unreachable!();

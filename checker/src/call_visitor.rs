@@ -913,6 +913,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                         Rc::from(msg)
                     }
                 };
+                /* NOTE: We intentionally undo this panic! suppression for `pallet-verifier`.
                 if msg.contains("entered unreachable code")
                     || msg.contains("not yet implemented")
                     || msg.contains("not implemented")
@@ -924,7 +925,8 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                     // unimplemented!() is unlikely to be a programmer mistake, so need to fixate on that either.
                     // unrecoverable! is way for the programmer to indicate that termination is not a mistake.
                     return;
-                } else if path_cond.is_none() && msg.as_ref() == "statement is reachable" {
+                } else */
+                if path_cond.is_none() && msg.as_ref() == "statement is reachable" {
                     // verify_unreachable should always complain if possibly reachable
                     // and the current function is public or root.
                     path_cond = Some(true);
