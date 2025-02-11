@@ -2485,8 +2485,24 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
 
     /// Evaluates the length value of an Array type and returns its value as usize
     pub fn get_array_length(&self, length: &'tcx Const<'tcx>) -> usize {
+        let eval_length = || match length.kind() {
+            rustc_middle::ty::ConstKind::Unevaluated(uneval_len) => {
+                let typing_env = self.type_visitor().get_typing_env_for(uneval_len.def);
+                let eval_result = self.tcx.const_eval_resolve_for_typeck(
+                    typing_env,
+                    uneval_len,
+                    self.current_span,
+                );
+                match eval_result {
+                    Ok(Ok(valtree)) => valtree.try_to_target_usize(self.tcx),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
         length
             .try_to_target_usize(self.tcx)
+            .or_else(eval_length)
             .expect("Array length constant to have a known value") as usize
     }
 
