@@ -13,7 +13,7 @@ pub mod alloc {
     pub mod alloc {
         pub fn handle_alloc_error() {
             // Not something that can be reasonably detected with static analysis, so ignore.
-            assume_unreachable!();
+            //assume_unreachable!();
         }
     }
 
@@ -113,8 +113,8 @@ pub mod alloc {
     }
 
     pub mod raw_vec {
-        pub fn capacity_overflow() {
-            assume_unreachable!("capacity overflow");
+        pub fn capacity_overflow() -> ! {
+            panic!("capacity overflow");
         }
 
         default_contract!(handle_error);
@@ -339,8 +339,8 @@ pub mod core {
         }
 
         pub mod raw_vec {
-            pub fn capacity_overflow() {
-                assume_unreachable!("capacity overflow");
+            pub fn capacity_overflow() -> ! {
+                panic!("capacity overflow");
             }
         }
     }
@@ -3116,19 +3116,21 @@ pub mod core {
         default_contract!(prefetch_write_instruction);
         default_contract!(breakpoint);
 
-        pub fn rustc_peek<T>(_: T) -> T {
-            assume_unreachable!()
+        pub fn rustc_peek<T>(x: T) -> T {
+            //assume_unreachable!()
+            x
         }
         pub fn abort() {
-            assume_unreachable!();
+            //assume_unreachable!();
         }
         pub fn unreachable() {
-            assume_unreachable!();
+            //assume_unreachable!();
         }
         pub unsafe fn assume(b: bool) {
-            if !b {
+            /*if !b {
                 unsafe { assume_unreachable!() }
-            }
+            }*/
+            assume!(b)
         }
         pub fn likely(b: bool) -> bool {
             b
@@ -3146,23 +3148,24 @@ pub mod core {
         }
 
         pub fn assert_inhabited<T>() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
         pub fn assert_zero_valid<T>() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
         pub fn assert_mem_uninitialized_valid<T>() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
-        pub const fn caller_location() -> &'static core::panic::Location<'static> {
-            assume_unreachable!()
+        pub const fn caller_location() /*-> &'static core::panic::Location<'static>*/
+        {
+            //assume_unreachable!()
         }
 
         pub const fn forget() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
         // Known name
@@ -3176,7 +3179,8 @@ pub mod core {
         // }
 
         pub fn needs_drop<T: ?Sized>() -> bool {
-            assume_unreachable!()
+            //assume_unreachable!()
+            abstract_value!(false)
         }
 
         // Known name
@@ -3190,7 +3194,8 @@ pub mod core {
         // }
 
         pub fn ptr_mask<T>(ptr: *const T, mask: usize) -> *const T {
-            assume_unreachable!()
+            //assume_unreachable!()
+            ptr
         }
 
         pub unsafe fn volatile_copy_nonoverlapping_memory<T>(
@@ -3691,11 +3696,11 @@ pub mod core {
         }
 
         pub fn aggregate_raw_ptr() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
         pub fn ptr_metadata() {
-            assume_unreachable!()
+            //assume_unreachable!()
         }
 
         // Known names
@@ -3793,7 +3798,7 @@ pub mod core {
             pub fn capacity_overflow() {
                 // Not something that can be prevented statically.
                 // Never returns to its caller.
-                assume_unreachable!("capacity overflow");
+                panic!("capacity overflow");
             }
         }
 
@@ -4318,18 +4323,20 @@ pub mod core {
     }
 
     pub mod option {
-        pub fn expect_failed() {
+        pub fn expect_failed(msg: &str) -> ! {
             // We currently treat expect as an explicit assumption made by the programmer for
             // reasons that are beyond the analyzer.
-            assume_unreachable!();
+            //assume_unreachable!();
+            panic!("called `Option::expect()` on a `None` value")
         }
+
         pub mod implement {
             pub mod cloned {
                 default_contract!(closure);
             }
         }
-        pub fn unwrap_failed() {
-            panic!("called `Option::unwrap()` on a `None` value");
+        pub fn unwrap_failed() -> ! {
+            panic!("called `Option::unwrap()` on a `None` value")
         }
     }
 
@@ -4419,8 +4426,8 @@ pub mod core {
     }
 
     pub mod result {
-        fn unwrap_failed() -> ! {
-            panic!("result unwrap failed")
+        pub fn unwrap_failed(msg: &str, error: &dyn std::fmt::Debug) -> ! {
+            panic!("called `Result::unwrap()` on an `Err` value")
         }
     }
 

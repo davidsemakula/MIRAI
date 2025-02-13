@@ -914,6 +914,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                         Rc::from(msg)
                     }
                 };
+                /* NOTE: We intentionally undo this panic! suppression for `pallet-verifier`.
                 if msg.contains("entered unreachable code")
                     || msg.contains("not yet implemented")
                     || msg.contains("not implemented")
@@ -925,13 +926,14 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                     // unimplemented!() is unlikely to be a programmer mistake, so need to fixate on that either.
                     // unrecoverable! is way for the programmer to indicate that termination is not a mistake.
                     return;
-                } else if path_cond.is_none() && msg.as_ref() == "statement is reachable" {
+                } else */
+                if path_cond.is_none() /*&& msg.as_ref() == "statement is reachable"*/ {
                     // verify_unreachable should always complain if possibly reachable
                     // and the current function is public or root.
                     path_cond = Some(true);
                 };
 
-                let span = self.block_visitor.bv.current_span.source_callsite();
+                let span = self.block_visitor.bv.current_span;
 
                 if path_cond.unwrap_or(false)
                     && self.block_visitor.bv.function_being_analyzed_is_root()
@@ -955,7 +957,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                             condition: Rc::new(abstract_value::FALSE),
                             message: msg,
                             provenance: None,
-                            spans: vec![],
+                            spans: vec![span],
                         };
                         self.block_visitor.bv.preconditions.push(precondition);
                     }
@@ -1000,11 +1002,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                             condition,
                             message: msg,
                             provenance: None,
-                            spans: if self.block_visitor.bv.def_id.is_local() {
-                                vec![span]
-                            } else {
-                                vec![] // The span is likely inside a standard macro, i.e. panic! etc.
-                            },
+                            spans: vec![span],
                         };
                         self.block_visitor.bv.preconditions.push(precondition);
                     } else {
