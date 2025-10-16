@@ -1146,14 +1146,10 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
             | KnownNames::StdIntrinsicsLogf32
             | KnownNames::StdIntrinsicsLogf64
             | KnownNames::StdIntrinsicsLogf128
-            | KnownNames::StdIntrinsicsNearbyintf16
-            | KnownNames::StdIntrinsicsNearbyintf32
-            | KnownNames::StdIntrinsicsNearbyintf64
-            | KnownNames::StdIntrinsicsNearbyintf128
-            | KnownNames::StdIntrinsicsRintf16
-            | KnownNames::StdIntrinsicsRintf32
-            | KnownNames::StdIntrinsicsRintf64
-            | KnownNames::StdIntrinsicsRintf128
+            | KnownNames::StdIntrinsicsRoundTiesEvenf16
+            | KnownNames::StdIntrinsicsRoundTiesEvenf32
+            | KnownNames::StdIntrinsicsRoundTiesEvenf64
+            | KnownNames::StdIntrinsicsRoundTiesEvenf128
             | KnownNames::StdIntrinsicsRoundf16
             | KnownNames::StdIntrinsicsRoundf32
             | KnownNames::StdIntrinsicsRoundf64

@@ -862,14 +862,8 @@ impl ConstantDomain {
                         KnownNames::StdIntrinsicsLog10f16 => val.log10(),
                         KnownNames::StdIntrinsicsLog2f16 => val.log2(),
                         KnownNames::StdIntrinsicsLogf16 => val.ln(),
-                        KnownNames::StdIntrinsicsNearbyintf16 => unsafe {
-                            std::intrinsics::nearbyintf16(val)
-                        },
-                        KnownNames::StdIntrinsicsRintf16 => unsafe {
-                            std::intrinsics::rintf16(val)
-                        },
                         KnownNames::StdIntrinsicsRoundf16 => val.round(),
-                        KnownNames::StdIntrinsicsRevenf16 => f16::round_ties_even(val),
+                        KnownNames::StdIntrinsicsRoundTiesEvenf16 => f16::round_ties_even(val),
                         KnownNames::StdIntrinsicsSinf16 => val.sin(),
                         KnownNames::StdIntrinsicsSqrtf16 => val.sqrt(),
                         KnownNames::StdIntrinsicsTruncf16 => val.trunc(),
@@ -891,14 +885,8 @@ impl ConstantDomain {
                         KnownNames::StdIntrinsicsLog10f32 => val.log10(),
                         KnownNames::StdIntrinsicsLog2f32 => val.log2(),
                         KnownNames::StdIntrinsicsLogf32 => val.ln(),
-                        KnownNames::StdIntrinsicsNearbyintf32 => unsafe {
-                            std::intrinsics::nearbyintf32(val)
-                        },
-                        KnownNames::StdIntrinsicsRintf32 => unsafe {
-                            std::intrinsics::rintf32(val)
-                        },
                         KnownNames::StdIntrinsicsRoundf32 => val.round(),
-                        KnownNames::StdIntrinsicsRevenf32 => f32::round_ties_even(val),
+                        KnownNames::StdIntrinsicsRoundTiesEvenf32 => f32::round_ties_even(val),
                         KnownNames::StdIntrinsicsSinf32 => val.sin(),
                         KnownNames::StdIntrinsicsSqrtf32 => val.sqrt(),
                         KnownNames::StdIntrinsicsTruncf32 => val.trunc(),
@@ -920,14 +908,8 @@ impl ConstantDomain {
                         KnownNames::StdIntrinsicsLog10f64 => val.log10(),
                         KnownNames::StdIntrinsicsLog2f64 => val.log2(),
                         KnownNames::StdIntrinsicsLogf64 => val.ln(),
-                        KnownNames::StdIntrinsicsNearbyintf64 => unsafe {
-                            std::intrinsics::nearbyintf64(val)
-                        },
-                        KnownNames::StdIntrinsicsRintf64 => unsafe {
-                            std::intrinsics::rintf64(val)
-                        },
                         KnownNames::StdIntrinsicsRoundf64 => val.round(),
-                        KnownNames::StdIntrinsicsRevenf64 => f64::round_ties_even(val),
+                        KnownNames::StdIntrinsicsRoundTiesEvenf64 => f64::round_ties_even(val),
                         KnownNames::StdIntrinsicsSinf64 => val.sin(),
                         KnownNames::StdIntrinsicsSqrtf64 => val.sqrt(),
                         KnownNames::StdIntrinsicsTruncf64 => val.trunc(),
@@ -949,14 +931,8 @@ impl ConstantDomain {
             //             KnownNames::StdIntrinsicsLog10f128 => val.log10(),
             //             KnownNames::StdIntrinsicsLog2f128 => val.log2(),
             //             KnownNames::StdIntrinsicsLogf128 => val.ln(),
-            //             KnownNames::StdIntrinsicsNearbyintf128 => unsafe {
-            //                 std::intrinsics::nearbyintf128(val)
-            //             },
-            //             KnownNames::StdIntrinsicsRintf128 => unsafe {
-            //                 std::intrinsics::rintf128(val)
-            //             },
             //             KnownNames::StdIntrinsicsRoundf128 => val.round(),
-            //             KnownNames::StdIntrinsicsRevenf128 => f128::round_ties_even(val),
+            //             KnownNames::StdIntrinsicsRoundTiesEvenf128 => f128::round_ties_even(val),
             //             KnownNames::StdIntrinsicsSinf128 => val.sin(),
             //             KnownNames::StdIntrinsicsSqrtf128 => val.sqrt(),
             //             KnownNames::StdIntrinsicsTruncf128 => val.trunc(),
