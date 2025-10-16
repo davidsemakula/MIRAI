@@ -1771,6 +1771,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             mir::Rvalue::CopyForDeref(place) => {
                 self.visit_used_copy(path, place);
             }
+            mir::Rvalue::WrapUnsafeBinder(operand, ty) => {
+                self.visit_wrap_unsafe_binder(path, operand, *ty);
+            }
         }
     }
 
@@ -4202,6 +4205,11 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     continue;
                 }
                 mir::ProjectionElem::Subslice { .. } => {}
+                mir::ProjectionElem::UnwrapUnsafeBinder(inner_ty) => {
+                    ty = self
+                        .type_visitor()
+                        .specialize_type(*inner_ty, &self.type_visitor().generic_argument_map);
+                }
             }
             result = Path::new_qualified(result, Rc::new(selector));
             self.type_visitor_mut()
@@ -4289,6 +4297,23 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 // Dummy selector that will be ignored by caller.
                 PathSelector::Deref
             }
+            mir::ProjectionElem::UnwrapUnsafeBinder(_) => PathSelector::Field(0),
         }
+    }
+
+    /// Wrap the operand in an unsafe binder and assign to path.
+    #[logfn_inputs(TRACE)]
+    fn visit_wrap_unsafe_binder(
+        &mut self,
+        path: Rc<Path>,
+        operand: &mir::Operand<'tcx>,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) {
+        // Essentially modeled as a aggregate value with a single field.
+        // See https://github.com/rust-lang/rust/pull/130514
+        let inner_path = Path::new_field(path, 0);
+        self.type_visitor_mut()
+            .set_path_rustc_type(inner_path.clone(), ty);
+        self.visit_use(inner_path, operand);
     }
 }

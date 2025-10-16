@@ -964,6 +964,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                     }
                     base_ty
                 }
+                mir::ProjectionElem::UnwrapUnsafeBinder(ty) => *ty,
             })
     }
 
