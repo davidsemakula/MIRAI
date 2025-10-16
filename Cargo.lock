@@ -94,7 +94,7 @@ dependencies = [
  "bitflags 2.8.0",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools",
  "proc-macro2",
  "quote",
  "regex",
@@ -475,15 +475,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,7 +561,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "mirai"
-version = "1.1.10"
+version = "1.1.12"
 dependencies = [
  "bincode",
  "cargo_metadata",
@@ -578,7 +569,7 @@ dependencies = [
  "contracts",
  "env_logger",
  "fs2",
- "itertools 0.14.0",
+ "itertools",
  "lazy_static",
  "log",
  "log-derive",
