@@ -92,7 +92,7 @@ pub fn contains_function<'tcx>(ty: Ty<'tcx>, tcx: TyCtxt<'tcx>) -> bool {
 pub fn is_public(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
     use rustc_hir::def_id::LocalDefId;
 
-    if tcx.hir().get_if_local(def_id).is_some() {
+    if tcx.hir_get_if_local(def_id).is_some() {
         let def_id = def_id.expect_local();
         match tcx
             .resolutions(())
@@ -117,7 +117,7 @@ pub fn is_public(def_id: DefId, tcx: TyCtxt<'_>) -> bool {
                             .is_public()
                     }
                     Node::ImplItem(..) => {
-                        let parent_def_id: LocalDefId = tcx.hir().get_parent_item(hir_id).def_id;
+                        let parent_def_id: LocalDefId = tcx.hir_get_parent_item(hir_id).def_id;
                         match tcx.hir_node_by_def_id(parent_def_id) {
                             Node::Item(rustc_hir::Item {
                                 kind:
