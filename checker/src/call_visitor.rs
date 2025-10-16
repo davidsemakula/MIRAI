@@ -3223,7 +3223,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                 };
 
                 let is_u128 = |kind: ConstKind| {
-                    if let ConstKind::Value(ty, _) = kind {
+                    if let ConstKind::Value(rustc_middle::ty::Value { ty, .. }) = kind {
                         *ty.kind() == TyKind::Uint(UintTy::U128)
                     } else {
                         false

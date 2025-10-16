@@ -21,7 +21,7 @@ use rustc_middle::ty::adjustment::PointerCoercion;
 use rustc_middle::ty::TypingMode;
 use rustc_middle::ty::{
     Const, CoroutineArgsExt, FloatTy, IntTy, ParamConst, ScalarInt, Ty, TyKind, UintTy, ValTree,
-    VariantDef,
+    ValTreeKind, VariantDef,
 };
 use rustc_middle::ty::{GenericArg, GenericArgsRef};
 use rustc_span::source_map::Spanned;
@@ -2867,21 +2867,25 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     self.bv.current_span
                 );
             }
-            // ZSTs, integers, `bool`, `char` and small structs are represented as scalars.
-            // See the `ScalarInt` documentation for how `ScalarInt` guarantees that equal values
-            // of these types have the same representation.
-            rustc_middle::ty::ConstKind::Value(lty, ValTree::Leaf(scalar_int)) => {
-                let (data, size) = Self::get_scalar_int_data(scalar_int);
-                self.get_constant_value_from_scalar(*lty, data, size)
-            }
-            // The fields of any kind of aggregate. Structs, tuples and arrays are represented by
-            // listing their fields' values in order.
-            // Enums are represented by storing their discriminant as a field, followed by all
-            // the fields of the variant.
-            rustc_middle::ty::ConstKind::Value(lty, val_tree) => {
-                let (heap_block, heap_path) = self.get_heap_block_and_path(*lty, val_tree);
-                self.deserialize_val_tree(val_tree, heap_path, *lty);
-                heap_block
+            rustc_middle::ty::ConstKind::Value(rustc_middle::ty::Value { ty, valtree }) => {
+                match **valtree {
+                    // ZSTs, integers, `bool`, `char` and small structs are represented as scalars.
+                    // See the `ScalarInt` documentation for how `ScalarInt` guarantees that equal values
+                    // of these types have the same representation.
+                    ValTreeKind::Leaf(scalar_int) => {
+                        let (data, size) = Self::get_scalar_int_data(scalar_int);
+                        self.get_constant_value_from_scalar(*ty, data, size)
+                    }
+                    // The fields of any kind of aggregate. Structs, tuples and arrays are represented by
+                    // listing their fields' values in order.
+                    // Enums are represented by storing their discriminant as a field, followed by all
+                    // the fields of the variant.
+                    ValTreeKind::Branch(_) => {
+                        let (heap_block, heap_path) = self.get_heap_block_and_path(*ty, valtree);
+                        self.deserialize_val_tree(valtree, heap_path, *ty);
+                        heap_block
+                    }
+                }
             }
             _ => {
                 debug!("kind {:?}", kind);
@@ -2929,24 +2933,25 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
         target_path: Rc<Path>,
         ty: Ty<'tcx>,
     ) {
-        match val_tree {
-            ValTree::Leaf(scalar_int) => {
+        match **val_tree {
+            ValTreeKind::Leaf(scalar_int) => {
                 let (data, size) = Self::get_scalar_int_data(scalar_int);
                 let const_value = self.get_constant_value_from_scalar(ty, data, size);
                 self.bv.update_value_at(target_path, const_value);
             }
-            ValTree::Branch(val_trees) => match ty.kind() {
+            ValTreeKind::Branch(val_trees) => match ty.kind() {
                 TyKind::Adt(def, args) if def.is_enum() => {
                     let mut val_tree_iter = val_trees.iter();
-                    let variant_index =
-                        if let Some(ValTree::Leaf(scalar_int)) = val_tree_iter.next() {
-                            self.get_enum_variant_index(scalar_int, ty, &target_path)
-                        } else {
-                            unreachable!(
-                                "serialized enum value without a discriminant value {:?} {:?}",
-                                def, val_trees
-                            );
-                        };
+                    let variant_index = if let Some(ValTreeKind::Leaf(scalar_int)) =
+                        val_tree_iter.next().map(|val_tree| **val_tree)
+                    {
+                        self.get_enum_variant_index(scalar_int, ty, &target_path)
+                    } else {
+                        unreachable!(
+                            "serialized enum value without a discriminant value {:?} {:?}",
+                            def, val_trees
+                        );
+                    };
                     let variant = &def.variants()[variant_index];
                     self.deserialize_fields(args, val_tree_iter, target_path, variant);
                 }
