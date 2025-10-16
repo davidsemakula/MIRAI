@@ -6,6 +6,7 @@
 use rustc_hir::def_id::DefId;
 use rustc_hir::definitions::{DefPathData, DisambiguatedDefPathData};
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Symbol;
 
 use std::collections::HashMap;
 
@@ -240,10 +241,22 @@ fn known_name_for_mirai_annotations(
 // Convenience macro for matching a single terminal path segment to a given item name,
 // and returning the given `KnownName` (in case of a successful match).
 macro_rules! known_name_for_terminal_from_ns {
+    ($path_segments: expr, DefPathData::TypeNs, $item_name: literal, $known_name: expr) => {
+        known_name_for_terminal_from_ns!($path_segments, DefPathData::TypeNs, |name: &Option<
+            Symbol,
+        >| {
+            (name.as_ref().filter(|name| name.as_str() == $item_name)).map(|_| $known_name)
+        })
+    };
     ($path_segments: expr, $ns_variant: path, $item_name: literal, $known_name: expr) => {
+        known_name_for_terminal_from_ns!($path_segments, $ns_variant, |name: &Symbol| {
+            (name.as_str() == $item_name).then_some($known_name)
+        })
+    };
+    ($path_segments: expr, $ns_variant: path, $transformer: expr) => {
         match $path_segments {
             [only_segment] => match &only_segment.data {
-                $ns_variant(name) => (name.as_str() == $item_name).then_some($known_name),
+                $ns_variant(name) => $transformer(name),
                 _ => None,
             },
             _ => None,
@@ -550,7 +563,7 @@ fn name_from_type_ns(
     def_path_data: &rustc_hir::definitions::DisambiguatedDefPathData,
 ) -> Option<&str> {
     match &def_path_data.data {
-        DefPathData::TypeNs(name) => Some(name.as_str()),
+        DefPathData::TypeNs(name) => name.as_ref().map(Symbol::as_str),
         _ => None,
     }
 }
