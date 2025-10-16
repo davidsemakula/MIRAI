@@ -12,7 +12,7 @@ use std::rc::Rc;
 use log_derive::*;
 
 use mirai_annotations::*;
-use rustc_abi::VariantIdx;
+use rustc_abi::{FieldIdx, VariantIdx};
 use rustc_hir::def_id::DefId;
 use rustc_index::Idx;
 use rustc_middle::mir;
@@ -724,7 +724,7 @@ impl<'tcx> TypeVisitor<'tcx> {
     ) -> Ty<'tcx> {
         for variant in def.variants().iter() {
             if ordinal < variant.fields.len() {
-                let field = &variant.fields[ordinal.into()];
+                let field = &variant.fields[FieldIdx::from_usize(ordinal)];
                 let ft = field.ty(self.tcx, args);
                 trace!("field {:?} type is {:?}", ordinal, ft);
                 return ft;

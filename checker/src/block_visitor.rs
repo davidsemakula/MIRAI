@@ -2637,7 +2637,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     let field_ty = field.ty(self.bv.tcx, args);
                     self.type_visitor_mut()
                         .set_path_rustc_type(field_path.clone(), field_ty);
-                    self.visit_use(field_path, &operands[0usize.into()]);
+                    self.visit_use(field_path, &operands[FieldIdx::ZERO]);
                     return;
                 }
                 if variant_def.fields.is_empty() {
@@ -2649,7 +2649,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     let field_ty = field.ty(self.bv.tcx, args);
                     self.type_visitor_mut()
                         .set_path_rustc_type(field_path.clone(), field_ty);
-                    if let Some(operand) = operands.get(i.into()) {
+                    if let Some(operand) = operands.get::<FieldIdx>(i.into()) {
                         self.visit_use(field_path, operand);
                     } else {
                         debug!(
@@ -2697,9 +2697,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 let pointer_type = Ty::new_ptr(self.bv.tcx, *ty, *mutbl);
                 self.type_visitor_mut()
                     .set_path_rustc_type(thin_pointer_path.clone(), pointer_type);
-                self.visit_use(thin_pointer_path, &operands[0usize.into()]);
+                self.visit_use(thin_pointer_path, &operands[FieldIdx::ZERO]);
                 let metadata_path = Path::new_field(path, 1);
-                self.visit_use(metadata_path, &operands[1usize.into()]);
+                self.visit_use(metadata_path, &operands[FieldIdx::from_usize(1)]);
             }
         }
     }
@@ -4233,7 +4233,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     if def.is_union() {
                         let variants = &def.variants();
                         assume!(variants.len() == 1); // only enums have more than one variant
-                        let variant = &variants[0usize.into()];
+                        let variant = &variants[VariantIdx::ZERO];
                         return PathSelector::UnionField {
                             case_index: field.index(),
                             num_cases: variant.fields.len(),
