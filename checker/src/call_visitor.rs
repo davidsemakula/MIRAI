@@ -12,11 +12,11 @@ use std::{f16, f64};
 use log_derive::*;
 
 use mirai_annotations::*;
+use rustc_abi::VariantIdx;
 use rustc_hir::def_id::DefId;
 use rustc_middle::mir;
 use rustc_middle::ty::ConstKind;
 use rustc_middle::ty::{GenericArg, GenericArgKind, GenericArgsRef, Ty, TyKind, UintTy};
-use rustc_target::abi::VariantIdx;
 
 use crate::abstract_value::{AbstractValue, AbstractValueTrait};
 use crate::block_visitor::BlockVisitor;
@@ -218,7 +218,7 @@ impl<'call, 'block, 'analysis, 'compilation, 'tcx>
                 .skip_binder()
                 .fn_sig(tcx)
                 .abi();
-            let resolved_instance = if abi == rustc_target::spec::abi::Abi::Rust {
+            let resolved_instance = if abi == rustc_abi::ExternAbi::Rust {
                 Some(rustc_middle::ty::Instance::try_resolve(
                     tcx,
                     typing_env,

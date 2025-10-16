@@ -11,6 +11,7 @@ use std::rc::Rc;
 use log_derive::*;
 
 use mirai_annotations::*;
+use rustc_abi::{FieldIdx, Primitive, TagEncoding, VariantIdx, Variants};
 use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec};
 use rustc_middle::mir;
@@ -24,7 +25,6 @@ use rustc_middle::ty::{
 };
 use rustc_middle::ty::{GenericArg, GenericArgsRef};
 use rustc_span::source_map::Spanned;
-use rustc_target::abi::{FieldIdx, Primitive, TagEncoding, VariantIdx, Variants};
 use rustc_trait_selection::infer::TyCtxtInferExt;
 
 use crate::abstract_value::{self, AbstractValue, AbstractValueTrait, BOTTOM};
@@ -208,7 +208,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
     fn visit_set_discriminant(
         &mut self,
         place: &mir::Place<'tcx>,
-        variant_index: rustc_target::abi::VariantIdx,
+        variant_index: rustc_abi::VariantIdx,
     ) {
         let target_path = Path::new_discriminant(self.visit_rh_place(place));
         let ty = self
@@ -3028,10 +3028,8 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         // The Rust compiler should ensure this.
                         assume!(alloc_len > offset_bytes);
                         let size = alloc_len - offset_bytes;
-                        let range = alloc_range(
-                            ptr.into_parts().1,
-                            rustc_target::abi::Size::from_bytes(size),
-                        );
+                        let range =
+                            alloc_range(ptr.into_parts().1, rustc_abi::Size::from_bytes(size));
                         let bytes = if size > 0
                             && alloc.inner().provenance().range_empty(range, &self.bv.tcx)
                         {
@@ -3046,8 +3044,8 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                     Some(GlobalAlloc::Memory(alloc)) => {
                                         let size = alloc.inner().len() as u64;
                                         let range = alloc_range(
-                                            rustc_target::abi::Size::from_bytes(0),
-                                            rustc_target::abi::Size::from_bytes(size),
+                                            rustc_abi::Size::from_bytes(0),
+                                            rustc_abi::Size::from_bytes(size),
                                         );
                                         bytes = alloc
                                             .inner()
@@ -3193,12 +3191,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
 
             // Used only for `&[u8]` and `&str`
             ConstValue::Slice { data, meta } => {
-                let size = rustc_target::abi::Size::from_bytes(meta);
+                let size = rustc_abi::Size::from_bytes(meta);
                 let bytes = data
                     .inner()
                     .get_bytes_strip_provenance(
                         &self.bv.tcx,
-                        alloc_range(rustc_target::abi::Size::ZERO, size),
+                        alloc_range(rustc_abi::Size::ZERO, size),
                     )
                     .unwrap();
                 let slice = &bytes[0..];

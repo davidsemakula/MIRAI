@@ -12,6 +12,7 @@ use std::rc::Rc;
 use log_derive::*;
 
 use mirai_annotations::*;
+use rustc_abi::VariantIdx;
 use rustc_hir::def_id::DefId;
 use rustc_index::Idx;
 use rustc_middle::mir;
@@ -20,7 +21,6 @@ use rustc_middle::ty::{
     ExistentialTraitRef, FnSig, GenericArg, GenericArgKind, GenericArgs, GenericArgsRef, ParamTy,
     Ty, TyCtxt, TyKind,
 };
-use rustc_target::abi::VariantIdx;
 
 use crate::abstract_value::AbstractValue;
 use crate::constant_domain::ConstantDomain;
