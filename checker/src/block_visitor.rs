@@ -2475,6 +2475,17 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 let val = self.bv.tcx.sess.opts.debug_assertions;
                 Rc::new(val.into())
             }
+            mir::NullOp::ContractChecks => {
+                let val = self
+                    .bv
+                    .tcx
+                    .sess
+                    .opts
+                    .unstable_opts
+                    .contract_checks
+                    .unwrap_or(false);
+                Rc::new(val.into())
+            }
         };
         self.bv.update_value_at(path, value);
     }
