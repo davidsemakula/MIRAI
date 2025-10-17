@@ -1659,6 +1659,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 ResumedAfterPanic(CoroutineKind::Desugared(CoroutineDesugaring::Gen, _)) => {
                     "`gen fn` should just keep returning `None` after panicking"
                 }
+                NullPointerDereference => "null pointer dereference",
             }
         }
     }
