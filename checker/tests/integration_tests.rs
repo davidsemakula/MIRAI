@@ -303,8 +303,7 @@ fn invoke_driver(
 
     let mut call_backs = callbacks::MiraiCallbacks::test_runner(options);
     let result = std::panic::catch_unwind(move || {
-        let compiler = rustc_driver::RunCompiler::new(&command_line_arguments, &mut call_backs);
-        compiler.run()
+        rustc_driver::run_compiler(&command_line_arguments, &mut call_backs)
     });
     match result {
         Ok(_) => 0,
