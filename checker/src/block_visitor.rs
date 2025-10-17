@@ -1734,6 +1734,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             mir::Rvalue::ThreadLocalRef(def_id) => {
                 self.visit_thread_local_ref(path, *def_id);
             }
+            mir::Rvalue::Len(place) => {
+                self.visit_len(path, place);
+            }
             mir::Rvalue::Cast(cast_kind, operand, ty) => {
                 let specialized_ty = self
                     .type_visitor()
@@ -2022,6 +2025,36 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             }
             PathEnum::HeapBlock { value } => value.clone(),
             _ => AbstractValue::make_reference(value_path.clone()),
+        };
+        self.bv.update_value_at(path, value);
+    }
+
+    /// path = array or slice (i.e. `[T]`, not `&[T]`) length as `usize`.
+    #[logfn_inputs(TRACE)]
+    fn visit_len(&mut self, path: Rc<Path>, place: &mir::Place<'tcx>) {
+        let source_type = self
+            .type_visitor()
+            .get_rustc_place_type(place, self.bv.current_span);
+        let value = match source_type.kind() {
+            TyKind::Array(_, len) => {
+                let len = self.bv.get_array_length(len);
+                self.get_u128_const_val(len as u128)
+            }
+            TyKind::Slice(_) => {
+                // For slices, the length is stored as the metadata for the place.
+                let slice_path = self.visit_rh_place(place);
+                self.bv.lookup_path_and_refine_result(
+                    Path::new_length(slice_path),
+                    self.bv.tcx.types.usize,
+                )
+            }
+            _ => {
+                // This operation is "ill-formed for places of other types".
+                assume_unreachable!(
+                    "length operation on non array or slice type {:?}",
+                    source_type
+                );
+            }
         };
         self.bv.update_value_at(path, value);
     }
