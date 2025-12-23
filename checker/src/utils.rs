@@ -3,25 +3,22 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-use rustc_hir::{
-    def::DefKind,
-    def_id::DefId,
-    definitions::{DefPathData, DisambiguatedDefPathData},
-    Node,
-};
-use rustc_middle::ty::{
-    self,
-    print::{FmtPrinter, Printer},
-    FloatTy, GenericArgKind, GenericArgsRef, IntTy, Ty, TyCtxt, TyKind, UintTy,
-};
-use rustc_span::Symbol;
-
 use std::io::Write;
 use std::rc::Rc;
 
 use log::debug;
 use log_derive::{logfn, logfn_inputs};
+
 use mirai_annotations::assume_unreachable;
+use rustc_hir::def::DefKind;
+use rustc_hir::def_id::DefId;
+use rustc_hir::definitions::{DefPathData, DisambiguatedDefPathData};
+use rustc_hir::Node;
+use rustc_middle::ty;
+use rustc_middle::ty::print::{FmtPrinter, Printer};
+use rustc_middle::ty::{
+    FloatTy, GenericArgKind, GenericArgsRef, IntTy, Ty, TyCtxt, TyKind, UintTy,
+};
 
 /// Returns the location of the rust system binaries that are associated with this build of Mirai.
 /// The location is obtained by looking at the contents of the environmental variables that were
@@ -422,7 +419,7 @@ pub fn is_foreign_contract(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
         ..
     }) = &tcx.def_path(def_id).data.first()
     {
-        name.is_some_and(|name| name.as_str() == "foreign_contracts")
+        name.as_str() == "foreign_contracts"
     } else {
         false
     }
@@ -432,10 +429,7 @@ pub fn is_foreign_contract(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
 fn push_component_name(component_data: DefPathData, target: &mut String) {
     use DefPathData::*;
     match component_data {
-        TypeNs(name) => {
-            target.push_str(name.as_ref().map(Symbol::as_str).unwrap_or("RPITIT"));
-        }
-        ValueNs(name) | MacroNs(name) | LifetimeNs(name) => {
+        TypeNs(name) | ValueNs(name) | MacroNs(name) | LifetimeNs(name) => {
             target.push_str(name.as_str());
         }
         _ => target.push_str(match component_data {
