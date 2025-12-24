@@ -1659,6 +1659,16 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 ResumedAfterPanic(CoroutineKind::Desugared(CoroutineDesugaring::Gen, _)) => {
                     "`gen fn` should just keep returning `None` after panicking"
                 }
+                ResumedAfterDrop(CoroutineKind::Coroutine(_)) => "coroutine resumed after drop",
+                ResumedAfterDrop(CoroutineKind::Desugared(CoroutineDesugaring::Async, _)) => {
+                    "`async fn` resumed after drop"
+                }
+                ResumedAfterDrop(CoroutineKind::Desugared(CoroutineDesugaring::AsyncGen, _)) => {
+                    "`async gen fn` resumed after drop"
+                }
+                ResumedAfterDrop(CoroutineKind::Desugared(CoroutineDesugaring::Gen, _)) => {
+                    "`gen fn` should just keep returning `None` after drop"
+                }
                 NullPointerDereference => "null pointer dereference",
             }
         }
