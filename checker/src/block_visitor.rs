@@ -300,6 +300,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 target,
                 unwind,
                 replace,
+                ..
             } => self.visit_drop(place, *target, *unwind, *replace),
             mir::TerminatorKind::Call {
                 func,
