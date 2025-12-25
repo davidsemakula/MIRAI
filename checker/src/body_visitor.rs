@@ -1816,7 +1816,10 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
             let variant = def.variants().iter().next().expect("at least one variant");
             for (i, field) in variant.fields.iter().enumerate() {
                 let field_path = Path::new_field(path.clone(), i);
-                let field_ty = field.ty(tcx, args);
+                let field_ty = self.type_visitor().specialize_type(
+                    field.ty(tcx, args),
+                    &self.type_visitor().generic_argument_map,
+                );
                 debug!("field_path: {:?}, field_ty: {:?}", field_path, field_ty);
                 if let TyKind::Adt(def, args) = field_ty.kind() {
                     self.add_leaf_fields_for(field_path, def, args, tcx, accumulator)
