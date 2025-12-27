@@ -2827,10 +2827,33 @@ impl AbstractValueTrait for Rc<AbstractValue> {
                     operand,
                     target_type,
                 },
-            ) => {
-                if *val == 0 && *target_type == ExpressionType::ThinPointer {
-                    return self.equals(operand.clone());
-                }
+            ) if *val == 0 && *target_type == ExpressionType::ThinPointer => {
+                return self.equals(operand.clone());
+            }
+
+            // [0 == cast(x, integer)] -> 0 == x
+            (
+                Expression::CompileTimeConstant(ConstantDomain::U128(val)),
+                Expression::Cast {
+                    operand,
+                    target_type,
+                },
+            ) if *val == 0 && target_type.is_integer() => {
+                return self.equals(operand.clone());
+            }
+
+            // [0 == transmute(x, integer)] -> 0 == x
+            (
+                Expression::CompileTimeConstant(ConstantDomain::U128(val)),
+                Expression::Transmute {
+                    operand,
+                    target_type,
+                },
+            ) if *val == 0
+                && target_type.is_integer()
+                && target_type.bit_length() == operand.expression.infer_type().bit_length() =>
+            {
+                return self.equals(operand.clone());
             }
 
             // [0 == !x] -> x when x is Boolean. Canonicalize it to the latter.
