@@ -2324,6 +2324,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
         };
         if let Expression::BitAnd { left, right } = &result.expression {
             if right.expression.is_memory_reference() {
+                // Handles misaligned pointer checks.
                 let alignment = match &left.expression {
                     Expression::CompileTimeConstant(ConstantDomain::U128(1)) => 2u128,
                     Expression::CompileTimeConstant(ConstantDomain::U128(3)) => 4u128,
@@ -2334,6 +2335,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 if alignment <= 16u128 && self.is_aligned(right, alignment) {
                     result = Rc::new(0u128.into());
                 }
+            }
+        }
+        if let Expression::Equals { left, right } = &result.expression {
+            // Handles null pointer checks.
+            if left.is_zero() && self.is_memory_safe_reference(right) {
+                result = Rc::new(false.into());
             }
         }
         self.bv.update_value_at(path, result);
@@ -2396,6 +2403,123 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             Expression::WidenedJoin { operand, .. } => self.is_aligned(operand, desired_alignment),
             _ => false,
         }
+    }
+
+    // Checks if abstract value is a memory safe reference
+    // (i.e. a reference, non-null pointer or smart pointer that wraps a non-null pointer).
+    #[logfn_inputs(TRACE)]
+    fn is_memory_safe_reference(&mut self, value: &Rc<AbstractValue>) -> bool {
+        match &value.expression {
+            Expression::Reference(_) => true,
+            Expression::Cast {
+                operand,
+                target_type,
+            }
+            | Expression::Transmute {
+                operand,
+                target_type,
+            } if *target_type == ExpressionType::Usize => self.is_memory_safe_reference(operand),
+            Expression::ConditionalExpression {
+                consequent,
+                alternate,
+                ..
+            } => {
+                self.is_memory_safe_reference(consequent)
+                    && self.is_memory_safe_reference(alternate)
+            }
+            Expression::Join { left, right } => {
+                self.is_memory_safe_reference(left) && self.is_memory_safe_reference(right)
+            }
+            Expression::WidenedJoin { operand, .. } => self.is_memory_safe_reference(operand),
+            Expression::InitialParameterValue { path, var_type }
+            | Expression::Variable { path, var_type }
+                if *var_type == ExpressionType::ThinPointer =>
+            {
+                // Expression types don't currently differentiate between references and raw pointers,
+                // so this checks the path rustc type instead.
+                if self.is_memory_safe_reference_path(path) {
+                    return true;
+                }
+
+                // Checks if the presumably raw pointer is derived from a memory safe reference.
+                let inner_value = self.bv.current_environment.value_at(path);
+                if inner_value.is_some() && inner_value != Some(value) {
+                    let inner_value = inner_value.unwrap().clone();
+                    return self.is_memory_safe_reference(&inner_value);
+                }
+                false
+            }
+            Expression::Offset { .. } => self.bv.try_check_offset(value).unwrap_or(false),
+            _ => false,
+        }
+    }
+
+    // Checks if path is a memory safe reference
+    // (i.e. either a reference, non-null pointer or smart pointer that wraps a non-null pointer).
+    #[logfn_inputs(TRACE)]
+    fn is_memory_safe_reference_path(&mut self, path: &Rc<Path>) -> bool {
+        let ty = self
+            .bv
+            .type_visitor()
+            .get_path_rustc_type(path, self.bv.current_span);
+        if ty.is_ref() {
+            return true;
+        }
+
+        if let Some(ty_def_id) = ty.ty_adt_def().map(|adt_def| adt_def.did()) {
+            let tcx = self.bv.tcx;
+            let get_field_type = |def_id: DefId, field_name: &str| {
+                let ty = tcx.type_of(def_id).skip_binder();
+                match ty.kind() {
+                    TyKind::Adt(adt_def, args) => {
+                        let field = adt_def
+                            .all_fields()
+                            .find(|field| field.name.as_str() == field_name);
+                        field.and_then(|field| {
+                            field
+                                .ty(tcx, args)
+                                .ty_adt_def()
+                                .map(|adt_def| adt_def.did())
+                        })
+                    }
+                    _ => None,
+                }
+            };
+
+            // Handles `core::ptr::Unique`.
+            let ptr_unique_def_id = tcx.lang_items().ptr_unique().or_else(|| {
+                // Fallback to extracting from Box.
+                self.bv
+                    .tcx
+                    .lang_items()
+                    .owned_box()
+                    .and_then(|def_id| get_field_type(def_id, "0"))
+            });
+            if ptr_unique_def_id == Some(ty_def_id) {
+                return true;
+            }
+
+            // Handles `core::ptr::NonNull`.
+            let ptr_non_null_def_id =
+                ptr_unique_def_id.and_then(|def_id| get_field_type(def_id, "pointer"));
+            if ptr_non_null_def_id == Some(ty_def_id) {
+                return true;
+            }
+        }
+
+        // Handles smart pointers that wrap non-null pointers (e.g. `Box`, `Vec` and `String`).
+        if let PathEnum::QualifiedPath {
+            qualifier,
+            selector,
+            ..
+        } = &path.value
+        {
+            if *selector.as_ref() == PathSelector::Field(0) {
+                return self.is_memory_safe_reference_path(qualifier);
+            }
+        }
+
+        false
     }
 
     /// Apply the given binary operator to the two operands, with overflow checking where appropriate

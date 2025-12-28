@@ -1102,6 +1102,17 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
     /// Checks that the offset is either in bounds or one byte past the end of an allocated object.
     #[logfn_inputs(TRACE)]
     pub fn check_offset(&mut self, offset: &AbstractValue) {
+        if let Some(false) = self.try_check_offset(offset) {
+            let span = self.current_span;
+            let message = "[MIRAI] effective offset is outside allocated range";
+            let warning = self.cv.session.dcx().struct_span_warn(span, message);
+            self.emit_diagnostic(warning);
+        }
+    }
+
+    /// Checks that the offset is either in bounds or one byte past the end of an allocated object.
+    #[logfn_inputs(TRACE)]
+    pub fn try_check_offset(&mut self, offset: &AbstractValue) -> Option<bool> {
         if let Expression::Offset { left, right, .. } = &offset.expression {
             let ge_zero = right.greater_or_equal(Rc::new(ConstantDomain::I128(0).into()));
             let mut len = left.clone();
@@ -1125,12 +1136,9 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
             let (in_range_as_bool, entry_cond_as_bool) =
                 self.check_condition_value_and_reachability(&in_range);
             //todo: eventually give a warning if in_range_as_bool is unknown. For now, that is too noisy.
-            if entry_cond_as_bool.unwrap_or(true) && !in_range_as_bool.unwrap_or(true) {
-                let span = self.current_span;
-                let message = "[MIRAI] effective offset is outside allocated range";
-                let warning = self.cv.session.dcx().struct_span_warn(span, message);
-                self.emit_diagnostic(warning);
-            }
+            Some(in_range_as_bool.unwrap_or(true) || !entry_cond_as_bool.unwrap_or(true))
+        } else {
+            None
         }
     }
 
