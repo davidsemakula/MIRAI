@@ -347,7 +347,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         // unlikely that the end user of the diagnostic will be able to anything about it.
         if let [span] = &diagnostic_builder.span.primary_spans() {
             if span.in_derive_expansion() {
-                info!("derive macro has warning: {:?}", diagnostic_builder);
+                info!("derive macro has warning: {diagnostic_builder:?}");
                 diagnostic_builder.cancel();
                 return;
             }
@@ -1180,7 +1180,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
             .iter()
             .filter(|(p, _)| (*p) == *source_path || p.is_rooted_by(source_path))
         {
-            trace!("effect {:?} {:?}", path, value);
+            trace!("effect {path:?} {value:?}");
             let dummy_root = Path::new_local(999_999, 0);
             let refined_dummy_root = Path::new_local(self.fresh_variable_offset + 999_999, 0);
             let mut tpath = path
@@ -1193,7 +1193,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                     self.fresh_variable_offset,
                 )
                 .replace_root(&refined_dummy_root, target_path.clone());
-            trace!("parameter refined tpath {:?}", tpath);
+            trace!("parameter refined tpath {tpath:?}");
             check_for_early_return!(self);
             match &tpath.value {
                 PathEnum::PhantomData => {
@@ -1228,7 +1228,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                 pre_environment,
                 self.fresh_variable_offset,
             );
-            trace!("refined effect {:?} {:?}", tpath, rvalue);
+            trace!("refined effect {tpath:?} {rvalue:?}");
             check_for_early_return!(self);
             let rtype = rvalue.expression.infer_type();
             match &rvalue.expression {
@@ -1835,7 +1835,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                     field.ty(tcx, args),
                     &self.type_visitor().generic_argument_map,
                 );
-                debug!("field_path: {:?}, field_ty: {:?}", field_path, field_ty);
+                debug!("field_path: {field_path:?}, field_ty: {field_ty:?}");
                 if let TyKind::Adt(def, args) = field_ty.kind() {
                     self.add_leaf_fields_for(field_path, def, args, tcx, accumulator)
                 } else if self.type_visitor().is_slice_pointer(field_ty.kind()) {
@@ -2181,10 +2181,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         F: Fn(&mut Self, Rc<Path>, Rc<Path>, Ty<'tcx>),
     {
         trace!(
-            "try_expand_source_pattern(target_path {:?}, source_path {:?}, root_rustc_ty {:?},)",
-            target_path,
-            source_path,
-            root_rustc_ty
+            "try_expand_source_pattern(target_path {target_path:?}, source_path {source_path:?}, root_rustc_ty {root_rustc_ty:?},)"
         );
         if let PathEnum::QualifiedPath {
             ref qualifier,
@@ -2269,10 +2266,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         F: Fn(&mut Self, Rc<Path>, Rc<Path>, Ty<'tcx>),
     {
         trace!(
-            "expand_slice(target_path {:?}, source_path {:?}, root_rustc_type {:?},)",
-            target_path,
-            source_path,
-            root_rustc_type
+            "expand_slice(target_path {target_path:?}, source_path {source_path:?}, root_rustc_type {root_rustc_type:?},)"
         );
         let mut elem_ty = self.type_visitor().get_element_type(root_rustc_type);
         if elem_ty == root_rustc_type {
@@ -2298,10 +2292,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                 let indexed_target = Path::new_index(target_path.clone(), target_index_val)
                     .canonicalize(&self.current_environment);
                 trace!(
-                    "indexed_target {:?} indexed_source {:?} elem_ty {:?}",
-                    indexed_target,
-                    indexed_source,
-                    elem_ty
+                    "indexed_target {indexed_target:?} indexed_source {indexed_source:?} elem_ty {elem_ty:?}"
                 );
                 update(self, indexed_target, indexed_source, elem_ty);
             }
@@ -2323,11 +2314,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         F: Fn(&mut Self, Rc<Path>, Rc<Path>, Ty<'tcx>),
     {
         debug!(
-            "conditionally_expand_slice(target_path {:?}, source_path {:?}, count {:?} root_rustc_type {:?},)",
-            target_path,
-            source_path,
-            count,
-            root_rustc_type
+            "conditionally_expand_slice(target_path {target_path:?}, source_path {source_path:?}, count {count:?} root_rustc_type {root_rustc_type:?},)"
         );
         let mut elem_ty = self.type_visitor().get_element_type(root_rustc_type);
         if elem_ty == root_rustc_type {
@@ -2400,10 +2387,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         F: Fn(&mut Self, Rc<Path>, Rc<Path>, Ty<'tcx>),
     {
         trace!(
-            "try_expand_target_pattern(target_path {:?}, source_path {:?}, root_rustc_type {:?},)",
-            target_path,
-            source_path,
-            root_rustc_type
+            "try_expand_target_pattern(target_path {target_path:?}, source_path {source_path:?}, root_rustc_type {root_rustc_type:?},)"
         );
         if let PathEnum::QualifiedPath {
             ref qualifier,
@@ -2484,7 +2468,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
     ) where
         F: Fn(&mut Self, Rc<Path>, Rc<AbstractValue>),
     {
-        trace!("non_patterned_copy_or_move_elements(target_path {:?}, source_path {:?}, root_rustc_type {:?})", target_path, source_path, root_rustc_type);
+        trace!("non_patterned_copy_or_move_elements(target_path {target_path:?}, source_path {source_path:?}, root_rustc_type {root_rustc_type:?})");
         let value = self.lookup_path_and_refine_result(source_path.clone(), root_rustc_type);
         if let Expression::Variable { path, .. } = &value.expression {
             if path.eq(&source_path) {
@@ -2557,11 +2541,11 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                     .replace_root(&source_path, target_path.clone())
                     .canonicalize(&env);
                 if move_elements && !path.contains_deref() {
-                    trace!("moving child {:?} to {:?}", value, qualified_path);
+                    trace!("moving child {value:?} to {qualified_path:?}");
                     self.current_environment.value_map =
                         self.current_environment.value_map.remove(path);
                 } else {
-                    trace!("copying child {:?} to {:?}", value, qualified_path);
+                    trace!("copying child {value:?} to {qualified_path:?}");
                 };
                 update(self, qualified_path, value.clone());
                 no_children = false;
@@ -2586,11 +2570,11 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
         if target_type != ExpressionType::NonPrimitive || no_children {
             // Just copy/move (rpath, value) itself.
             if move_elements {
-                trace!("moving {:?} to {:?}", value, target_path);
+                trace!("moving {value:?} to {target_path:?}");
                 self.current_environment.value_map =
                     self.current_environment.value_map.remove(&source_path);
             } else {
-                trace!("copying {:?} to {:?}", value, target_path);
+                trace!("copying {value:?} to {target_path:?}");
             }
             update(self, target_path, value);
         }
@@ -2965,7 +2949,7 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
     ) where
         F: Fn(Rc<AbstractValue>) -> Rc<AbstractValue>,
     {
-        trace!("propagate_tag_to_tag_fields(root_path: {:?})", root_path);
+        trace!("propagate_tag_to_tag_fields(root_path: {root_path:?})");
         let old_value_map = self.current_environment.value_map.clone();
 
         for (path, val) in old_value_map

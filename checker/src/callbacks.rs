@@ -144,7 +144,7 @@ impl MiraiCallbacks {
             output_dir
         } else {
             let temp_dir = TempDir::new().expect("failed to create a temp dir");
-            String::from(temp_dir.into_path().to_str().expect("valid string"))
+            String::from(temp_dir.keep().to_str().expect("valid string"))
         };
         info!(
             "storing summaries for {} at {}/.summary_store.sled",

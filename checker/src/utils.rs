@@ -344,7 +344,7 @@ fn append_mangled_type<'tcx>(str: &mut String, ty: Ty<'tcx>, tcx: TyCtxt<'tcx>) 
         }
         _ => {
             //todo: add cases as the need arises, meanwhile make the need obvious.
-            debug!("{:?}", ty);
+            debug!("{ty:?}");
             debug!("{:?}", ty.kind());
             write!(str, "default formatted {ty:?}").expect("enough space");
         }
@@ -401,7 +401,7 @@ pub fn summary_key_str(tcx: TyCtxt<'_>, def_id: DefId) -> Rc<str> {
                     | DefKind::Union
                     | DefKind::Enum
                     | DefKind::Variant
-                    | DefKind::TyAlias { .. }
+                    | DefKind::TyAlias
                     | DefKind::Impl { .. },
             ) {
                 name.push('_');

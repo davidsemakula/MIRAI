@@ -497,7 +497,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             ty = self
                 .type_visitor()
                 .get_rustc_place_type(place, self.bv.current_span);
-            debug!("ty {:?}", ty);
+            debug!("ty {ty:?}");
         }
         self.type_visitor_mut()
             .set_path_rustc_type(path.clone(), ty);
@@ -607,9 +607,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
         // a million local variables.
         self.bv.fresh_variable_offset += 1_000_000;
 
-        trace!("source location {:?}", fn_span);
+        trace!("source location {fn_span:?}");
         trace!("call stack {:?}", self.bv.active_calls_map);
-        trace!("visit_call {:?} {:?}", func, args);
+        trace!("visit_call {func:?} {args:?}");
         trace!(
             "self.generic_argument_map {:?}",
             self.type_visitor().generic_argument_map
@@ -1845,10 +1845,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 .type_visitor()
                 .get_path_rustc_type(&rpath, self.bv.current_span);
             if utils::is_concrete(source_type.kind()) {
-                debug!(
-                    "changing {:?} from {:?} to {:?}",
-                    target_path, target_type, source_type
-                );
+                debug!("changing {target_path:?} from {target_type:?} to {source_type:?}");
                 self.type_visitor_mut()
                     .set_path_rustc_type(target_path.clone(), source_type);
             }
@@ -1874,10 +1871,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 .type_visitor()
                 .get_path_rustc_type(&rpath, self.bv.current_span);
             if utils::is_concrete(source_type.kind()) {
-                debug!(
-                    "changing {:?} from {:?} to {:?}",
-                    target_path, target_type, source_type
-                );
+                debug!("changing {target_path:?} from {target_type:?} to {source_type:?}");
                 self.type_visitor_mut()
                     .set_path_rustc_type(target_path.clone(), source_type);
             }
@@ -2144,7 +2138,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                             .type_visitor()
                             .get_path_rustc_type(&source_path, self.bv.current_span);
                         if utils::is_concrete(source_type.kind()) {
-                            debug!("changing {:?} from {:?} to {:?}", path, ty, source_type);
+                            debug!("changing {path:?} from {ty:?} to {source_type:?}");
                             self.type_visitor_mut()
                                 .set_path_rustc_type(path.clone(), source_type);
                         }
@@ -2386,7 +2380,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         {
                             return *alignment >= desired_alignment;
                         }
-                        debug!("{:?}", alignment);
+                        debug!("{alignment:?}");
                     }
                 }
                 false
@@ -2401,7 +2395,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         .bv
                         .type_visitor()
                         .get_path_rustc_type(path, self.bv.current_span);
-                    debug!("{:?}", ty);
+                    debug!("{ty:?}");
                     let (_, type_alignment) =
                         self.bv.type_visitor().get_type_size_and_alignment(ty);
                     type_alignment >= desired_alignment
@@ -2787,10 +2781,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     if let Some(operand) = operands.get::<FieldIdx>(i.into()) {
                         self.visit_use(field_path, operand);
                     } else {
-                        debug!(
-                            "variant has more fields than was serialized {:?}",
-                            variant_def
-                        );
+                        debug!("variant has more fields than was serialized {variant_def:?}");
                     }
                 }
             }
@@ -2959,8 +2950,8 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             None => {
                 if !args.is_empty() {
                     let typing_env = rustc_middle::ty::TypingEnv::fully_monomorphized();
-                    trace!("devirtualize resolving def_id {:?}: {:?}", def_id, def_ty);
-                    trace!("args {:?}", args);
+                    trace!("devirtualize resolving def_id {def_id:?}: {def_ty:?}");
+                    trace!("args {args:?}");
                     if let Ok(Some(instance)) = rustc_middle::ty::Instance::try_resolve(
                         self.bv.tcx,
                         typing_env,
@@ -2969,8 +2960,8 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     ) {
                         def_id = instance.def.def_id();
                         args = instance.args;
-                        trace!("resolved it to {:?}", def_id);
-                        trace!("resolved args {:?}", args);
+                        trace!("resolved it to {def_id:?}");
+                        trace!("resolved args {args:?}");
                         self.bv.cv.generic_args_cache.insert(def_id, args);
                     }
                 }
@@ -3071,7 +3062,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 }
             }
             _ => {
-                debug!("kind {:?}", kind);
+                debug!("kind {kind:?}");
                 Rc::new(ConstantDomain::Unimplemented.into())
             }
         }
@@ -3105,7 +3096,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             if let Some(val_tree) = val_tree_iter.next() {
                 self.deserialize_val_tree(val_tree, field_path, field_ty);
             } else {
-                debug!("variant has more fields than was serialized {:?}", variant);
+                debug!("variant has more fields than was serialized {variant:?}");
             }
         }
     }
@@ -3139,7 +3130,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     self.deserialize_fields(args, val_tree_iter, target_path, variant);
                 }
                 TyKind::Adt(def, _) if def.is_union() => {
-                    debug!("Did not expect to a serialized union value {:?}", def);
+                    debug!("Did not expect to a serialized union value {def:?}");
                 }
                 TyKind::Adt(def, args) => {
                     let val_tree_iter = val_trees.iter();
@@ -3153,7 +3144,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         if let Some(val_tree) = val_tree_iter.next() {
                             self.deserialize_val_tree(val_tree, field_path, field_ty);
                         } else {
-                            debug!("tuple has more fields than was serialized {:?}", ty);
+                            debug!("tuple has more fields than was serialized {ty:?}");
                         }
                     }
                 }
@@ -3171,12 +3162,12 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         if let Some(val_tree) = val_tree_iter.next() {
                             self.deserialize_val_tree(val_tree, elem_path, *elem_type);
                         } else {
-                            debug!("array has more elements than was serialized {:?}", ty);
+                            debug!("array has more elements than was serialized {ty:?}");
                         }
                     }
                 }
                 _ => {
-                    debug!("did not expect a value tree branch for this type {:?}", ty);
+                    debug!("did not expect a value tree branch for this type {ty:?}");
                 }
             },
         }
@@ -3284,8 +3275,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                         debug!("span: {:?}", self.bv.current_span);
                                         debug!("type kind {:?}", lty.kind());
                                         debug!(
-                                            "constant value did not serialize correctly {:?}",
-                                            val
+                                            "constant value did not serialize correctly {val:?}"
                                         );
                                     }
                                     AbstractValue::make_reference(heap_path)
@@ -3313,7 +3303,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                                 if !bytes_left_to_deserialize.is_empty() {
                                     debug!("span: {:?}", self.bv.current_span);
                                     debug!("type kind {:?}", lty.kind());
-                                    debug!("constant value did not serialize correctly {:?}", val);
+                                    debug!("constant value did not serialize correctly {val:?}");
                                 }
                                 heap_val
                             }
@@ -3459,7 +3449,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 if !bytes_left_to_deserialize.is_empty() {
                     debug!("span: {:?}", self.bv.current_span);
                     debug!("type kind {:?}", lty.kind());
-                    debug!("constant value did not serialize correctly {:?}", val);
+                    debug!("constant value did not serialize correctly {val:?}");
                 }
                 heap_val
             }
@@ -3480,11 +3470,11 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             .set_path_rustc_type(target_path.clone(), ty);
         match ty.kind() {
             TyKind::Adt(def, args) if def.is_enum() => {
-                trace!("deserializing {:?} {:?}", def, args);
+                trace!("deserializing {def:?} {args:?}");
                 trace!("def.repr() {:?}", def.repr());
                 let mut bytes_left_to_deserialize = bytes;
                 if let Ok(enum_ty_layout) = self.type_visitor().layout_of(ty) {
-                    trace!("enum_ty_layout {:?}", enum_ty_layout);
+                    trace!("enum_ty_layout {enum_ty_layout:?}");
                     let len = enum_ty_layout.size.bytes_usize();
                     let tag_length;
                     let data = if len == 0 {
@@ -3520,10 +3510,10 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     self.bv.update_value_at(discr_path, discr_data);
                     if discr_has_data {
                         let variant = &def.variants()[discr_index];
-                        trace!("deserializing variant {:?}", variant);
+                        trace!("deserializing variant {variant:?}");
                         for (i, field) in variant.fields.iter().enumerate() {
-                            trace!("deserializing field({}) {:?}", i, field);
-                            trace!("bytes_left_deserialize {:?}", bytes_left_to_deserialize);
+                            trace!("deserializing field({i}) {field:?}");
+                            trace!("bytes_left_deserialize {bytes_left_to_deserialize:?}");
                             let field_path = Path::new_field(target_path.clone(), i);
                             let field_ty = field.ty(self.bv.tcx, args);
                             trace!(
@@ -3541,14 +3531,14 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                 bytes_left_to_deserialize
             }
             TyKind::Adt(def, args) => {
-                trace!("deserializing {:?} {:?}", def, args);
+                trace!("deserializing {def:?} {args:?}");
                 let mut bytes_left_to_deserialize = bytes;
                 for variant in def.variants().iter() {
-                    trace!("deserializing variant {:?}", variant);
+                    trace!("deserializing variant {variant:?}");
                     bytes_left_to_deserialize = bytes;
                     for (i, field) in variant.fields.iter().enumerate() {
-                        trace!("deserializing field({}) {:?}", i, field);
-                        trace!("bytes_left_deserialize {:?}", bytes_left_to_deserialize);
+                        trace!("deserializing field({i}) {field:?}");
+                        trace!("bytes_left_deserialize {bytes_left_to_deserialize:?}");
                         let field_path = Path::new_field(target_path.clone(), i);
                         let field_ty = field.ty(self.bv.tcx, args);
                         trace!(
@@ -3827,12 +3817,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             // Get the structure of the discriminant tag
             let (discr_signed, discr_bits, discr_index, discr_has_data) =
                 self.get_discriminator_info(data, &ty_and_layout);
-            trace!(
-                "discr tag {:?} index {:?} dataful {:?}",
-                discr_bits,
-                discr_index,
-                discr_has_data
-            );
+            trace!("discr tag {discr_bits:?} index {discr_index:?} dataful {discr_has_data:?}");
             let discr_path = Path::new_discriminant(target_path.clone());
             let discr_data = if discr_signed {
                 self.get_i128_const_val(discr_bits as i128)
@@ -3849,7 +3834,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     variant_def.ident(self.bv.tcx)
                 };
                 let name_str = name.as_str();
-                trace!("discr name {:?}", name_str);
+                trace!("discr name {name_str:?}");
 
                 // Obtains the path to store the data. For example, for Option<char>,
                 // the path should be `(x as Some).0`.
@@ -3890,9 +3875,9 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
 
         trace!("enum_ty_layout.ty {:?}", enum_ty_layout.ty);
         let discr_ty = enum_ty_layout.ty.discriminant_ty(self.bv.tcx);
-        trace!("discr_ty {:?}", discr_ty);
+        trace!("discr_ty {discr_ty:?}");
         let discr_ty_layout = self.type_visitor().layout_of(discr_ty).unwrap();
-        trace!("discr_ty_layout {:?}", discr_ty_layout);
+        trace!("discr_ty_layout {discr_ty_layout:?}");
         match enum_ty_layout.variants {
             Variants::Empty => {
                 discr_signed = false;
@@ -3974,21 +3959,21 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                         // For example, `Option<(usize, &T)>`  is represented such that
                         // `None` has a null pointer for the second tuple field, and
                         // `Some` is the identity function (with a non-null reference).
-                        trace!("untagged_variant {:?}", untagged_variant);
-                        trace!("niche_start {:?}", niche_start);
+                        trace!("untagged_variant {untagged_variant:?}");
+                        trace!("niche_start {niche_start:?}");
                         let variants_start = niche_variants.start().as_u32();
                         let variants_end = niche_variants.end().as_u32();
                         let variant = if data >= niche_start
                             && variants_end >= variants_start
                             && (data - niche_start) <= (variants_end - variants_start).into()
                         {
-                            trace!("data {:?}", data);
+                            trace!("data {data:?}");
                             discr_has_data = false;
                             let variant_index_relative = (data - niche_start) as u32;
                             let variant_index = variants_start + variant_index_relative;
                             VariantIdx::from_u32(variant_index)
                         } else {
-                            trace!("data {:?}", data);
+                            trace!("data {data:?}");
                             discr_has_data = true;
                             let fields = &variants[untagged_variant].fields;
                             checked_assume!(
@@ -4098,10 +4083,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
                     if !bytes_left_to_deserialize.is_empty() {
                         debug!("span: {:?}", self.bv.current_span);
                         debug!("type kind {:?}", ty.kind());
-                        debug!(
-                            "constant value did not serialize correctly {:?} {:?}",
-                            data, size
-                        );
+                        debug!("constant value did not serialize correctly {data:?} {size:?}");
                     }
                     return heap_val;
                 }
@@ -4159,7 +4141,7 @@ impl<'block, 'analysis, 'compilation, 'tcx> BlockVisitor<'block, 'analysis, 'com
             ty = self
                 .type_visitor()
                 .get_rustc_place_type(place, self.bv.current_span);
-            debug!("ty {:?}", ty);
+            debug!("ty {ty:?}");
         } else if ty.is_ptr_sized_integral() {
             let place_ty = self
                 .type_visitor()

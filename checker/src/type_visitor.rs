@@ -475,7 +475,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                             let map = self.get_generic_arguments_map(*def_id, args, &[]);
                             t = self.specialize_type(self.tcx.type_of(*def_id).skip_binder(), &map);
                             trace!("opaque type_of {:?}", t.kind());
-                            trace!("opaque type_of {:?}", t);
+                            trace!("opaque type_of {t:?}");
                         }
                         match t.kind() {
                             TyKind::Adt(def, args) => {
@@ -501,7 +501,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                                 let closure_substs = args.as_closure();
                                 return *closure_substs.upvar_tys().get(*ordinal).unwrap_or_else(
                                     || {
-                                        info!("closure field not found {:?} {:?}", def_id, ordinal);
+                                        info!("closure field not found {def_id:?} {ordinal:?}");
                                         &self.tcx.types.never
                                     },
                                 );
@@ -512,7 +512,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                                 if let Some(field_tys) = tuple_types.nth(*ordinal) {
                                     return Ty::new_tup_from_iter(self.tcx, field_tys);
                                 }
-                                info!("generator field not found {:?} {:?}", def_id, ordinal);
+                                info!("generator field not found {def_id:?} {ordinal:?}");
                                 return self.tcx.types.never;
                             }
                             TyKind::Ref(_, t, _) if matches!(t.kind(), TyKind::Closure(..)) => {
@@ -528,8 +528,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                                             .get(*ordinal)
                                             .unwrap_or_else(|| {
                                                 info!(
-                                                    "closure field not found {:?} {:?}",
-                                                    def_id, ordinal
+                                                    "closure field not found {def_id:?} {ordinal:?}"
                                                 );
                                                 &self.tcx.types.never
                                             });
@@ -657,15 +656,15 @@ impl<'tcx> TypeVisitor<'tcx> {
                     }
                     _ => {}
                 }
-                info!("current span is {:?}", current_span);
+                info!("current span is {current_span:?}");
                 info!(
                     "cache key is {:?}",
                     utils::summary_key_str(self.tcx, self.def_id)
                 );
-                info!("path is {:?}", path);
-                info!("t is {:?}", t);
-                info!("qualifier is {:?}", qualifier);
-                info!("selector is {:?}", selector);
+                info!("path is {path:?}");
+                info!("t is {t:?}");
+                info!("qualifier is {qualifier:?}");
+                info!("selector is {selector:?}");
                 self.tcx.types.never
             }
             PathEnum::StaticVariable { def_id, .. } => {
@@ -726,11 +725,11 @@ impl<'tcx> TypeVisitor<'tcx> {
             if ordinal < variant.fields.len() {
                 let field = &variant.fields[FieldIdx::from_usize(ordinal)];
                 let ft = field.ty(self.tcx, args);
-                trace!("field {:?} type is {:?}", ordinal, ft);
+                trace!("field {ordinal:?} type is {ft:?}");
                 return ft;
             }
         }
-        debug!("adt def does not have a field with ordinal {}", ordinal);
+        debug!("adt def does not have a field with ordinal {ordinal}");
         self.tcx.types.never
     }
 
@@ -798,7 +797,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                 }
                 map.insert(param_def.name, specialized_gen_arg);
             } else {
-                debug!("unmapped generic param def {:?}", param_def);
+                debug!("unmapped generic param def {param_def:?}");
             }
             self.tcx.mk_param_from_def(param_def) // not used
         });
@@ -905,8 +904,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                     TyKind::Ref(_, ty, _) => *ty,
                     _ => {
                         info!(
-                            "bad deref projection span: {:?}\nelem: {:?} type: {:?}",
-                            current_span, projection_elem, base_ty
+                            "bad deref projection span: {current_span:?}\nelem: {projection_elem:?} type: {base_ty:?}"
                         );
                         self.tcx.types.never
                     }
@@ -923,8 +921,7 @@ impl<'tcx> TypeVisitor<'tcx> {
                         TyKind::Slice(ty) => *ty,
                         _ => {
                             debug!(
-                                "span: {:?}\nelem: {:?} type: {:?}",
-                                current_span, projection_elem, base_ty
+                                "span: {current_span:?}\nelem: {projection_elem:?} type: {base_ty:?}"
                             );
                             assume_unreachable!();
                         }
@@ -954,13 +951,11 @@ impl<'tcx> TypeVisitor<'tcx> {
                             return Ty::new_tup_from_iter(self.tcx, field_tys);
                         }
                         debug!(
-                            "illegally down casting to index {} of {:?} at {:?}",
+                            "illegally down casting to index {} of {base_ty:?} at {current_span:?}",
                             ordinal.index(),
-                            base_ty,
-                            current_span
                         );
                     } else {
-                        info!("unexpected type for downcast {:?}", base_ty);
+                        info!("unexpected type for downcast {base_ty:?}");
                     }
                     base_ty
                 }
