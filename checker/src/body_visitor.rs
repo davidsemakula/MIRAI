@@ -2489,7 +2489,9 @@ impl<'analysis, 'compilation, 'tcx> BodyVisitor<'analysis, 'compilation, 'tcx> {
                     self.current_span,
                 );
                 match eval_result {
-                    Ok(Ok(valtree)) => valtree.try_to_target_usize(self.tcx),
+                    Ok(Ok(valtree)) => valtree
+                        .try_to_scalar_int()
+                        .map(|s| s.to_target_usize(self.tcx)),
                     _ => None,
                 }
             }
