@@ -5,6 +5,7 @@
 //
 
 use crate::expression::ExpressionType::{self, *};
+use crate::utils;
 
 use log_derive::*;
 use serde::{Deserialize, Serialize};
@@ -76,13 +77,13 @@ impl From<ExpressionType> for IntervalDomain {
             I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
             I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
             I128 => (i128::MIN, i128::MAX),
-            Isize => ((isize::MIN as i128), (isize::MAX as i128)),
+            Isize => ((utils::isize_min() as i128), (utils::isize_max() as i128)),
             U8 => (0, i128::from(u8::MAX)),
             U16 => (0, i128::from(u16::MAX)),
             U32 => (0, i128::from(u32::MAX)),
             U64 => (0, i128::from(u64::MAX)),
             U128 => (0, i128::MAX),
-            Usize => (0, (usize::MAX as i128)),
+            Usize => (0, (utils::usize_max() as i128)),
             _ => return BOTTOM.clone(),
         };
         IntervalDomain {
@@ -193,14 +194,15 @@ impl IntervalDomain {
             }
             I128 => self.lower_bound > i128::MIN && self.upper_bound < i128::MAX,
             Isize => {
-                self.lower_bound >= (isize::MIN as i128) && self.upper_bound <= (isize::MAX as i128)
+                self.lower_bound >= (utils::isize_min() as i128)
+                    && self.upper_bound <= (utils::isize_max() as i128)
             }
             U8 => self.lower_bound >= 0 && self.upper_bound <= i128::from(u8::MAX),
             U16 => self.lower_bound >= 0 && self.upper_bound <= i128::from(u16::MAX),
             U32 => self.lower_bound >= 0 && self.upper_bound <= i128::from(u32::MAX),
             U64 => self.lower_bound >= 0 && self.upper_bound <= i128::from(u64::MAX),
             U128 => self.lower_bound >= 0 && self.upper_bound < i128::MAX,
-            Usize => self.lower_bound >= 0 && self.upper_bound <= (usize::MAX as i128),
+            Usize => self.lower_bound >= 0 && self.upper_bound <= (utils::usize_max() as i128),
             _ => false,
         }
     }
@@ -219,7 +221,8 @@ impl IntervalDomain {
             I64 | U64 => self.lower_bound >= 0 && self.upper_bound < 64,
             I128 | U128 => self.lower_bound >= 0 && self.upper_bound < 128,
             Isize | Usize => {
-                self.lower_bound >= 0 && self.upper_bound < i128::from(usize::MAX.count_ones())
+                self.lower_bound >= 0
+                    && self.upper_bound < i128::from(utils::usize_max().count_ones())
             }
             _ => false,
         }
