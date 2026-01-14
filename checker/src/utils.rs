@@ -432,6 +432,14 @@ fn push_component_name(component_data: DefPathData, target: &mut String) {
         TypeNs(name) | ValueNs(name) | MacroNs(name) | LifetimeNs(name) => {
             target.push_str(name.as_str());
         }
+        AnonAssocTy(name) => {
+            target.push_str("anon_assoc_");
+            target.push_str(name.as_str());
+        }
+        OpaqueLifetime(name) => {
+            target.push_str("opaque_");
+            target.push_str(name.as_str());
+        }
         _ => target.push_str(match component_data {
             CrateRoot => "crate_root",
             Impl => "implement",
@@ -442,6 +450,8 @@ fn push_component_name(component_data: DefPathData, target: &mut String) {
             Ctor => "ctor",
             AnonConst => "constant",
             OpaqueTy => "opaque",
+            SyntheticCoroutineBody => "coroutine",
+            NestedStatic => "static",
             _ => assume_unreachable!(),
         }),
     };
